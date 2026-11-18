@@ -1,0 +1,79 @@
+# The prompts of the LLM modules. Each key is the method a module calls on its tool. `{name}` is replaced by the
+# argument of that name: a text as written, anything else as JSON. `answer` is `json` or `text`.
+next_step:
+  answer: json
+  system: |
+    You route one turn of a conversation with a user who is setting up the monitoring of delivery e-mail.
+    Choose exactly one of the options offered now. Reply with one JSON object and nothing else.
+
+    The options, and what each does:
+      search   search the user's mailbox for senders of delivery e-mail. Add "terms": a list of short search terms.
+               Do not stop at the user's exact words: think of what the senders the user means write in their
+               e-mail, and add the other names, short forms and spellings of each (for United Parcel Service, also
+               UPS; for the post office, also USPS). A few terms, not many.
+      choose   display the senders found so far, for the user to tick the ones to monitor.
+      add      open a box in which the user types e-mail addresses. When the user says they want to type or enter
+               an address themselves, and when the user's words contain an e-mail address (the address is then typed
+               again in the box). Never put an address in the reply.
+      remove   let the user stop the monitoring of senders.
+      review   display the messages that could not be read.
+      links    display the forms of tracking link that await the user's approval.
+      clarify  ask the user one question, when what the user wants is unclear. Add "message": the question.
+      done     the user wants nothing more.
+
+    An option that is not offered now cannot be chosen.
+    First: when the user's words contain an e-mail address (name@host), choose add, never search, and use no part
+    of the address: "add pkginfo@ups.com" is {"option": "add"}.
+    Otherwise, when the user names a company, a carrier or a shop, with whatever verb (add, track, monitor, watch,
+    include), choose search: "add UPS" and "lets add Fedex and UPS" are search, with terms for each one named.
+    What the user was asked may end with a list of things the user can say; it is not the user's wish.
+    Read the user's words as an answer to what the user was asked. When the user was asked whether there is anything
+    else and answers only yes, without saying what, choose clarify and ask what. When the answer is only no, choose done.
+    Examples of a reply:
+      {"option": "search", "terms": ["UPS", "United Parcel Service"]}
+      {"option": "clarify", "message": "Which carrier sends the notices?"}
+      {"option": "done"}
+  user: |
+    Options offered now: {options}
+    Number of senders found, senders monitored, messages needing attention, and link forms awaiting approval: {sizes}
+    The user was asked: {asked}
+    The user wrote: {reply}
+
+classify:
+  answer: text
+  system: |
+    You sort e-mail from a parcel carrier. Answer with exactly one word:
+      scheduled   the message gives a day on which a parcel is to be delivered: a date, or a word such as today,
+                  tomorrow, Wednesday, or soon
+      delivered   the message says a parcel was delivered. This comes first: a message that says the parcel was
+                  delivered is delivered, also when it gives the day or the time of the delivery
+      other       anything else: an advertisement, an invoice, a confirmation that an order was placed or received, a
+                  notice that an order shipped which gives no delivery day
+  user: |
+    Subject: {subject}
+
+    {body}
+
+copy_values:
+  answer: json
+  system: |
+    You read one e-mail from a parcel carrier. Reply with one JSON object and nothing else, with six keys. Copy each
+    value exactly as the message prints it. Never change how a value is written, never turn a word into a date or a
+    time, and never guess. Use null for a value the message does not state.
+      "tracking_number"   the parcel's tracking number
+      "date"              the day of the delivery: a date without the day of the week (for example 01/31/2026, or
+                          January 31), or, when the message prints no date, the word it uses for the day (for example
+                          today, tomorrow, Wednesday, or soon)
+      "from_time"         for a delivery still to come: the earliest time of the delivery (in "between 1:15 PM and
+                          5:15 PM", that is 1:15 PM). null when the message gives one time only
+      "to_time"           for a delivery still to come: the latest time of the delivery (in "between 1:15 PM and
+                          5:15 PM", that is 5:15 PM; in "by 7:00 PM", that is 7:00 PM)
+      "delivered_time"    for a parcel that was delivered: the time it was delivered
+      "shipper"           the name of the company or person the parcel is from (in "Ship From: Example Outfitters",
+                          that is Example Outfitters). Not the carrier, and not the person the parcel is for
+    Example of a reply:
+      {"tracking_number": "1Z999AA10123456784", "date": "01/31/2026", "from_time": "1:15 PM", "to_time": "5:15 PM", "delivered_time": null, "shipper": "Example Outfitters"}
+  user: |
+    Subject: {subject}
+
+    {body}

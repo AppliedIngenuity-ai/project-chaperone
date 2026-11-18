@@ -1,0 +1,8 @@
+labels:
+  UNTRUSTED:   {words: "untrusted",          colour: "#b3261e"}
+  PERSONAL:    {words: "personal",           colour: "#1e4fa0"}
+default_style: fields
+styles:
+  fields: {layout: one_part_per_line}
+panes: []
+state_tab: true                           # the tab "State": every stored value and each run's saved values; false removes it

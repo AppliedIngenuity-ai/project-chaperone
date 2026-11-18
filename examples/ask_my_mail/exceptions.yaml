@@ -1,0 +1,5 @@
+exceptions:
+  - {id: MAILBOX_APPROVED_EX,  rule: NOTHING_LEAVES_NETWORK,      except: {call: {where: {MAILBOX: true}}}}
+  - {id: SHOW_TO_USER_EX,      rule: NO_UNTRUSTED_DATA_TO_OUTPUT, except: {call: [user.show]}}
+  - {id: ERRORS_IN_LOG_EX,     rule: NO_UNTRUSTED_DATA_TO_OUTPUT, except: {call: [log]}}
+  - {id: PERSONAL_TO_USER_EX,  rule: NO_PERSONAL_DATA_OUTPUT,     except: {call: [user.show, log]}}

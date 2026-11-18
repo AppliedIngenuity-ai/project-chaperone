@@ -1,0 +1,22 @@
+# "Share notes": the smallest project that shows a refused call. Made-up data: the notes, the LLM and the mail server
+# answer from the files in demo/; nothing is read from a folder and no message is sent anywhere.
+#
+# The workflow reads a note (PERSONAL), has an LLM summarize it (the summary is PERSONAL, UNTRUSTED and LLM_WRITTEN),
+# shows the summary to the user (permitted by two exceptions) and then passes it to `mail.send.message`, which two
+# rules forbid and no exception permits. So:
+#   python -m chaperone run examples/share_notes --setup demo
+# reports 2 possible violations and asks about each. Answer 4, "Acknowledge the risk, add no exception", at both: the
+# program starts, and when the workflow is run the call is refused: nothing is sent. Answer 1 instead, and the
+# exception it proposes is added and the call is permitted (the made-up mail server answers; nothing is sent anywhere).
+note: "Made-up data: the notes, the LLM and the mail server answer from files. No message is sent anywhere."
+tools:
+  NOTES:     {client: {kind: scripted, answers: demo/notes.yaml},   facts: {OUTPUT: false, LEAVES_NETWORK: false, adds: [PERSONAL]}}
+  LOCAL_LLM: {client: {kind: scripted, answers: demo/llm.yaml},     facts: {OUTPUT: false, LEAVES_NETWORK: false, adds: [UNTRUSTED, LLM_WRITTEN]}}
+  MAILBOX:   {client: {kind: scripted, answers: demo/mailbox.yaml}, facts: {LEAVES_NETWORK: true, adds: []}}
+  BROWSER:   {client: {kind: web},                                  facts: {OUTPUT: true, LEAVES_NETWORK: false, adds: []}}
+modules:
+  notes.*:     {tool: NOTES}
+  llm.*:       {tool: LOCAL_LLM}
+  mail.send.*: {tool: MAILBOX, facts: {OUTPUT: true}}    # a module that sends: what it is passed is output
+  user.*:      {tool: BROWSER}
+log: {tool: BROWSER, facts: {DESTRUCTIVE: false}}

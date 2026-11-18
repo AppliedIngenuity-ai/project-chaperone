@@ -1,0 +1,14 @@
+workflow: ask_my_mail
+start: MAIN
+on_error: FAILED
+states:
+  MAIN:
+    steps:
+      - {call: user.enter,    with: {prompt: "Keyword to search for?", fields: {keyword: text}}, save_as: entered}
+      - {call: user.describe, with: {prompt: "Your question?"},                                  save_as: question}
+      - {call: mail.search,   with: {keyword: "{vars.entered.keyword}"},                         save_as: messages}
+      - {call: llm.answer,    with: {question: "{vars.question}", messages: "{vars.messages}"},  save_as: answer}
+      - {call: labels_of,     with: {value: "{vars.answer}"},                                    save_as: marks}
+      - {call: user.show,     with: {report: "{vars.answer}", marks: "{vars.marks}"}}
+    end: true
+  FAILED: {end: true}                     # an error continues here: the run ends; the page's Log has the error

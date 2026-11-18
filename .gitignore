@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# A Python environment made for this folder: a venv, or the file `pyenv local` writes.
+.venv/
+.python-version
+
+# What a run keeps (the stored values, the acceptance, the logs), and data a loader script fetched.
+state/
+data/
+
+# Your own secrets and settings: the folder private/ (a link named private too), and any file whose name ends in
+# _priv before its extension, anywhere, such as configs/llm/local_priv.yaml or setups/real_priv.yaml.
+private
+*_priv.*

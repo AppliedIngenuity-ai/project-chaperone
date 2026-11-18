@@ -1,0 +1,19 @@
+# The five rules every example project imports (specification 2.10).
+properties:
+  OUTPUT:         {}
+  LEAVES_NETWORK: {default: false}
+  DESTRUCTIVE:    {}
+rules:
+  - id: NOTHING_LEAVES_NETWORK
+    never: {call: {where: {LEAVES_NETWORK: true}}}
+  - id: NO_DECISIONS_FROM_UNTRUSTED
+    never: {call: [decide], carrying: {UNTRUSTED: true}}
+  - id: NO_UNTRUSTED_DATA_TO_OUTPUT
+    never: {call: {where: {OUTPUT: true}}, carrying: {UNTRUSTED: true}}
+  - id: NO_DESTRUCTIVE_ACTIONS
+    never: {call: {where: {DESTRUCTIVE: true}}}
+  # Optional for a project; required for ours. It forbids passing a value that carries PERSONAL to a module whose
+  # OUTPUT is true; the other rules allow personal data inside the network. A project that does not want it imports
+  # a rules file without it: an importing file cannot remove an imported rule.
+  - id: NO_PERSONAL_DATA_OUTPUT
+    never: {call: {where: {OUTPUT: true}}, carrying: {PERSONAL: true}}

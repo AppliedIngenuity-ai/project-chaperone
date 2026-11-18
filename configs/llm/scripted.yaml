@@ -1,0 +1,5 @@
+# No real model: a stand-in in this program that does the job properly, so the example runs anywhere
+# (`model: scripted`: the stand-in the application supplies under that name). Nothing it is shown leaves the program.
+name: "scripted stand-in, no real model"
+provider: stand-in
+model: scripted

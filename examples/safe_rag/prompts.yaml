@@ -1,0 +1,131 @@
+# The prompt of the LLM module. The key is the method the module calls on its tool. `{name}` is replaced by the
+# argument of that name: a text as written, anything else as JSON. `answer` is `json` or `text`.
+ask:
+  answer: text
+  system: |
+    You answer a question from numbered chunks of documents, and from nothing else: not from what you know.
+    Reply with one JSON object and nothing else, with these keys, in this order:
+      "restated_query"  the question, in your own words, in one sentence.
+      "answer_found"    true when the chunks answer the question, false when they do not. When false, the reply
+                        has no other key.
+      "relevant"        the numbers of the chunks that bear on the answer.
+      "snippets"        the passages the answer rests on, at most 5, each {"id": the number of a chunk, "snippet":
+                        one or two sentences copied from that chunk exactly, character for character}. Copy one
+                        passage that runs on in the chunk; never join sentences that are apart, never shorten with
+                        "...", never change a word.
+      "answer"          your answer, in two to four sentences, from the relevant chunks only.
+    Example of a reply:
+      {"restated_query": "Why is a large republic better at controlling factions?", "answer_found": true,
+       "relevant": [2, 3],
+       "snippets": [{"id": 3, "snippet": "Extend the sphere, and you take in a greater variety of parties and interests"}],
+       "answer": "The author argues that a large republic takes in more parties and interests, so no single faction easily becomes a majority."}
+    Example when the chunks do not answer: {"restated_query": "What is the capital of France?", "answer_found": false}
+  user: |
+    Question: {query}
+
+    Chunks:
+    {chunks}
+
+# The prompt of llm.answer_with_concepts (the workflow multi_pass): as `ask`, with one more key,
+# `key_concepts`, `relevant` in order of usefulness, {overview}, what the documents are (the setup's `overview`), and
+# {note}, what the workflow says about these chunks ("" in the first round).
+ask_with_concepts:
+  answer: text
+  system: |
+    You answer a question from numbered chunks of documents, and from nothing else: not from what you know.
+    What the documents are: {overview}
+    Reply with one JSON object and nothing else, with these keys, in this order:
+      "restated_query"  the question, in your own words, in one sentence. Do not name the collection of documents
+                        itself or its authors, unless the question is about them.
+      "answer_found"    true when the chunks answer the question, false when they do not. When false, the reply
+                        has no key after this one.
+      "relevant"        the numbers of the chunks that bear on the answer, the most useful first.
+      "snippets"        the passages the answer rests on, at most 5, each {"id": the number of a chunk, "snippet":
+                        one or two sentences copied from that chunk exactly, character for character}. Copy one
+                        passage that runs on in the chunk; never join sentences that are apart, never shorten with
+                        "...", never change a word.
+      "answer"          your answer, in two to four sentences, from the relevant chunks only.
+    Example of a reply:
+      {"restated_query": "Why is a large republic better at controlling factions?",
+       "answer_found": true,
+       "relevant": [3, 2],
+       "snippets": [{"id": 3, "snippet": "Extend the sphere, and you take in a greater variety of parties and interests"}],
+       "answer": "The author argues that a large republic takes in more parties and interests, so no single faction easily becomes a majority."}
+    Example when the chunks do not answer: {"restated_query": "What is the capital of France?", "answer_found": false}
+  user: |
+    Question: {query}
+
+    {note}
+    Chunks:
+    {chunks}
+
+# The prompt of llm.answer_alone (the workflow just_ask_the_llm): the question and nothing else, for comparison.
+ask_alone:
+  answer: text
+  system: |
+    Answer the question in two to four sentences.
+  user: |
+    {query}
+
+# The prompt of llm.answer_plainly (the workflow typical_rag): the question and the chunks, an answer in plain
+# text, for comparison. Nothing checks the reply, a quote in it included.
+ask_plainly:
+  answer: text
+  system: |
+    Answer the question from the context below. Quote the passages you rely on and name the document of each.
+    If the context does not answer the question, say so.
+  user: |
+    Question: {query}
+
+    Context:
+    {chunks}
+
+# The prompt of llm.judge_relevance (the workflow multi_pass, after its second search): for each chunk, whether
+# it bears on the question. The question is the user's own.
+judge_relevance:
+  answer: text
+  system: |
+    You are given a question and numbered chunks of documents that a broad search found. Some of them do not bear
+    on the question.
+    What the documents are: {overview}
+    Each chunk begins with its number in square brackets: [1], [2], and so on. A line that begins "Document:" is the
+    title of the chunks under it, not a chunk.
+    Judge every chunk, one by one. A chunk bears on the question when it holds something that helps answer it as
+    asked, even a part of it; sharing a word with the question is not enough.
+    Reply with one JSON object and nothing else, with one entry for every number in square brackets, the number and
+    true or false:
+      {"1": true, "2": false, "3": true}
+  user: |
+    Question: {query}
+
+    Chunks:
+    {chunks}
+
+# The prompt of llm.read_question (the workflow multi_pass, before its first search): the question alone, with
+# what the documents are and how many chunks hold each of its words. What it gives never replaces the question: it
+# is searched for as well.
+read_question:
+  answer: json
+  system: |
+    You prepare a question for a search by words in a collection of documents. You do not answer it.
+    What the documents are: {overview}
+    Reply with one JSON object and nothing else, with these keys, in this order:
+      "rephrased_query"      the question as someone who knows this collection would write it: usual spellings,
+                             and the usual names in this field for the things it asks about. Add nothing the
+                             question does not ask. A question about something outside this collection stays
+                             about that thing: do not turn it into a question about the collection. A word that
+                             the documents hold (see the counts) may be a name, an acronym or a term of the
+                             field: leave it as it is.
+      "primary_concepts"     the concepts present in the question that a passage must be about to answer it: the
+                             ones worth searching for. Each one to three words, in its usual spelling. At most 4.
+      "supportive_concepts"  the other concepts present in the question: they help rank passages, but many
+                             passages that do not answer also hold them. At most 4.
+    Take the concepts from the question, not from what an answer would say.
+    Before the question you are given counts: for each word of the question, and each two words that follow each
+    other, how many chunks of the documents hold it. They are information about the documents, not part of the
+    question.
+  user: |
+    Counts:
+    {counts}
+
+    Question: {query}

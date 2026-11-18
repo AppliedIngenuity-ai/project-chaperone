@@ -1,0 +1,20 @@
+exceptions:
+  # The page may display a part that carries UNTRUSTED only when it also carries CHECKED: the LLM's words, after the check.
+  - {id: SHOW_CHECKED_EX,        rule: NO_UNTRUSTED_DATA_TO_OUTPUT, except: {call: [user.show], carrying: {CHECKED: true}}}
+  # A branch, in any workflow, on a value whose untrusted parts carry CHECKED: any field of verify.response's result but
+  # `documents` (restated_query, answer, found, supported, left_out), the LLM's own text included. This workflow
+  # branches on `supported`: the LLM's reply decides whether its answer is displayed, and causes one more search and
+  # LLM call (under `hosted`, more chunks go to the vendor). The pre-run result names the state, not the field.
+  - {id: SUPPORTED_DECIDES_EX,   rule: NO_DECISIONS_FROM_UNTRUSTED, except: {call: [decide], carrying: {CHECKED: true}}}
+  # The two workflows for comparison, just_ask_the_llm and typical_rag: the LLM's answer with no check, displayed
+  # marked "untrusted" and "written by the LLM". This permits any untrusted value to the module user.show_unchecked,
+  # which only those two workflows call; user.show is not named, so `answer` and `multi_pass` still display
+  # the LLM's words only after the check. Remove this exception and the two are a possible violation at the start.
+  - {id: UNCHECKED_LLM_TO_USER_EX, rule: NO_UNTRUSTED_DATA_TO_OUTPUT, except: {call: [user.show_unchecked]}}
+  # The setup `hosted` sends the question and chunks of the documents to the LLM's vendor, which NOTHING_LEAVES_NETWORK
+  # forbids. No exception for it is written here: the first start under `hosted` lists the possible violation with
+  # the exception that would permit it, and the user adds it there (a user-approved exception, kept in the state folder).
+  # setups/hosted.yaml shows the exception written by the tool's name (CLAUDE_APPROVED_EX), and why it is not here.
+  # The page's panes Activity and Log display what a module wrote in an error. An error carries the labels of what the
+  # module was passed, so the text may hold words of the LLM.
+  - {id: ERRORS_IN_LOG_EX,       rule: NO_UNTRUSTED_DATA_TO_OUTPUT, except: {call: [log]}}

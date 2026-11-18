@@ -1,0 +1,41 @@
+search_senders:
+  - {address: pkginfo@ups.example, messages: 5, subjects: ["UPS Update: Package Scheduled for Delivery Thursday", "UPS Update: Your package is delayed"]}
+  - {address: mcinfo@ups.example,  messages: 2, subjects: ["UPS Update: Your package was delivered"]}
+  - {address: deals@shop.example,  messages: 1, subjects: ["20% off this week"]}
+count_messages:             # the made-up mailbox has no message from a typed address; it answers for one address
+  - {address: "the address entered", messages: 0}
+fetch_next:                 # four messages, then none
+  each_call:
+    - id: 1
+      links: ["https://www.ups.example/track?tracknum=1Z999AA10123456784"]
+      received: "2026-11-10T09:01:00+00:00"
+      received_day: "2026-11-10"
+      received_time: "09:01"
+      from: pkginfo@ups.example
+      subject: "UPS Update: Package Scheduled for Delivery Thursday"
+      body: "Hello, your package is on the way. Scheduled Delivery: Thursday 11/12/2026 between 1:15 PM - 5:15 PM. Tracking Number: 1Z999AA10123456784. Ship From: Example Outfitters."
+    - id: 2
+      links: ["https://www.ups.example/track?tracknum=1Z999AA10123456785"]
+      received: "2026-11-10T09:02:00+00:00"
+      received_day: "2026-11-10"
+      received_time: "09:01"
+      from: pkginfo@ups.example
+      subject: "UPS Update: Your package is delayed"
+      body: "Hello, your package is delayed. We will send the new delivery day when it is known. Tracking Number: 1Z999AA10123456785."
+    - id: 3
+      links: ["https://shop.example/sale"]
+      received: "2026-11-10T09:03:00+00:00"
+      received_day: "2026-11-10"
+      received_time: "09:01"
+      from: deals@shop.example
+      subject: "20% off this week"
+      body: "Everything in the shop is 20% off until Sunday. Free delivery on orders over $50."
+    - id: 4
+      links: ["https://www.ups.example/track?tracknum=1Z999AA10123456784"]
+      received: "2026-11-10T09:04:00+00:00"
+      received_day: "2026-11-10"
+      received_time: "09:01"
+      from: mcinfo@ups.example
+      subject: "UPS Update: Your package was delivered"
+      body: "Your package was delivered. Delivered On: Tuesday, 11/10/2026 at 2:14 PM. Left at: front door. Tracking Number: 1Z999AA10123456784."
+    - null

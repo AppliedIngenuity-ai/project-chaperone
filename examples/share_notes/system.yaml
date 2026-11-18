@@ -1,0 +1,4 @@
+labels:
+  UNTRUSTED:   {spreads: true}
+  PERSONAL:    {spreads: true}
+  LLM_WRITTEN: {spreads: true}

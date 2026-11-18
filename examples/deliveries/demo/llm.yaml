@@ -1,0 +1,13 @@
+classify:
+  each_call: [scheduled, scheduled, other, delivered]
+copy_values:                # for messages 1, 2 and 4; the second states no day
+  each_call:
+    - {tracking_number: 1Z999AA10123456784, date: "11/12/2026", from_time: "1:15 PM", to_time: "5:15 PM", shipper: Example Outfitters}
+    - {tracking_number: 1Z999AA10123456785, date: delayed}
+    - {tracking_number: 1Z999AA10123456784, date: "11/10/2026", delivered_time: "2:14 PM"}
+
+next_step:
+  each_call:
+    - {option: search, terms: [UPS, United Parcel Service]}
+    - {option: add}
+    - {option: done}

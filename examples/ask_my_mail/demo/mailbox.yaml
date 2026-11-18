@@ -1,0 +1,4 @@
+# What the made-up mailbox returns for any keyword.
+search:
+  - {from: pkginfo@ups.example, subject: "UPS Update: Package Scheduled for Delivery", body: "Your parcel 1Z999AA10123456784 is scheduled for Tuesday."}
+  - {from: deals@shop.example,  subject: "20% off this week",                          body: "Free delivery on orders over 40."}

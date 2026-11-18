@@ -1,0 +1,27 @@
+workflow: reset_entries
+description: "Removes the calendar entries, so that update_calendar reads the mail again. Keeps the senders."
+start: ASK
+on_error: FAILED
+states:
+  ASK:                                    # nothing is removed unless the user ticks the line and confirms
+    steps:
+      - {call: user.choose, with: {items: ["Remove every calendar entry this system made, and forget which messages were handled"],
+                                   prompt: "Remove the calendar entries, so that update_calendar reads the mail again from the start? The monitored senders are kept."}, save_as: ticked}
+      - {call: lists.sizes, with: {lists: {ticked: "{vars.ticked}"}}, save_as: sizes}
+    next: {switch: "{vars.sizes.ticked}", goto: {1: CLEAR}, else: KEPT}
+  CLEAR:
+    steps:
+      - {call: calendar.remove_entries, save_as: gone}
+      - {call: store.put, with: {store: HANDLED_MESSAGES, value: []}}
+      - {call: store.put, with: {store: NEEDS_ATTENTION,  value: []}}
+      - {call: user.show, with: {report: {note: "Done. Start update_calendar to read the mail again.", entries_removed: "{vars.gone.removed}"}, marks: {}}}
+    end: true
+  KEPT:
+    steps: [{call: user.show, with: {report: {note: "Nothing was removed."}, marks: {}}}]
+    end: true
+  FAILED:
+    steps:
+      - {call: get,       with: {value: {note: "Stopped on an error. What was removed stays removed.", error_type: "{error.type}"}}, save_as: screen}
+      - {call: labels_of, with: {value: "{vars.screen}"}, save_as: marks}
+      - {call: user.show, with: {report: "{vars.screen}", marks: "{vars.marks}"}}
+    end: true

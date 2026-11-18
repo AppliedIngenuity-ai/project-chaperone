@@ -1,0 +1,33 @@
+# DOCS_DB is a copy of the one in setups/local.yaml: to change the folder, change it in both files. The LLM is at a
+# vendor, Anthropic as shipped. The question and chunks of the documents leave this machine, which the rule
+# NOTHING_LEAVES_NETWORK forbids: the first start under this setup lists it as a possible violation, with the
+# exception that would permit it (USER_NOTHING_LEAVES_NETWORK_EX), and accepting adds that exception for this setup.
+#
+# The same permission written by hand, by the tool's name (the paper's Figure 3):
+#   - {id: CLAUDE_APPROVED_EX, rule: NOTHING_LEAVES_NETWORK, except: {call: {where: {VENDOR_LLM: true}}}}
+# It permits every call of a module that uses the tool VENDOR_LLM, a module added later included. It is an example,
+# in force nowhere: it cannot be written in exceptions.yaml, which every setup reads, because the tool VENDOR_LLM is
+# declared only in this setup and the others would not load. To use it, write it under `exceptions:` in
+# state/safe_rag/hosted/user_exceptions.yaml, the file the start writes the exceptions a user approves to.
+#
+# Before starting, in your own shell:  export ANTHROPIC_API_KEY="..."   (the key is never written in a file)
+# The model is chosen by the one line `endpoint:` below:
+#   ../../configs/llm/anthropic-opus.yaml     Claude Opus 5.5
+#   ../../configs/llm/anthropic-sonnet.yaml   Claude Sonnet 5.5
+#   ../../configs/llm/anthropic-haiku.yaml    Claude Haiku 5.5
+# For another vendor's server with the OpenAI interface, copy one of those files and change four lines:
+# `provider: openai`, `api_base:` (the server's address, ending /v1), `model:` and `name:`; `api_key_env` names its key.
+note: "Real: the documents in the folder DOCS_DB names; the LLM is at the vendor its settings file names. The question and chunks of the documents go to that vendor."
+tools:
+  DOCS_DB:    {client: {kind: documents, folder: corpus, extensions: [.txt, .md], file: documents.sqlite, block_chars: 1200, tokenizer: porter,
+                      overview: "The Federalist Papers: 85 essays of 1787 and 1788 by Alexander Hamilton, James Madison and John Jay, arguing for the ratification of the Constitution of the United States."},
+               facts: {OUTPUT: false, LEAVES_NETWORK: false, adds: []}}
+  VENDOR_LLM: {client: {endpoint: ../../configs/llm/anthropic-opus.yaml, prompts: prompts.yaml}, facts: {OUTPUT: false, LEAVES_NETWORK: true, adds: [UNTRUSTED, LLM_WRITTEN]}}
+  BROWSER:    {client: {kind: web}, facts: {OUTPUT: true, LEAVES_NETWORK: false, adds: []}}
+modules:
+  rag.*:           {tool: DOCS_DB}
+  verify.response: {tool: DOCS_DB}
+  verify.scored:   {tool: DOCS_DB}
+  llm.*:           {tool: VENDOR_LLM}
+  user.*:          {tool: BROWSER}
+log: {tool: BROWSER, facts: {DESTRUCTIVE: false}}   # the page displays what a module wrote in an error: a call of `log`, checked like a call of a module that uses this tool

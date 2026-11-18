@@ -1,0 +1,17 @@
+labels:
+  UNTRUSTED:        {spreads: true,  may_remove: [user.choose_senders, user.choose_links, links.fill]}
+  PERSONAL:         {spreads: true,  may_remove: [lists.sizes]}
+  LLM_WRITTEN:      {spreads: true,  may_remove: [check.delivery_values, user.choose_senders]}
+  SANITIZED:        {spreads: false, may_add: [string.clean]}
+  CHECKED:          {spreads: false, may_add: [check.delivery_values]}   # the values the check read in the message; they stay UNTRUSTED
+stores:
+  FOUND_SENDERS:     []
+  MONITORED_SENDERS: []
+  NEEDS_ATTENTION:   []
+  HANDLED_MESSAGES:  []
+  SCANNED_MESSAGES:  []
+  LINKS_TO_APPROVE:  []
+  APPROVED_LINKS:    []
+  DECLINED_LINKS:    []
+  TURNS:             0
+  PROBLEMS:          0

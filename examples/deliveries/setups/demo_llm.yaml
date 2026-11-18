@@ -1,0 +1,20 @@
+# As setups/demo.yaml, but the LLM is the model server of configs/llm/local.yaml (localhost).
+# The mailbox and the calendar still answer from files in demo/.
+note: "The LLM is the model server on this machine: it chooses the next step from what is typed, and reads each message. Made-up data: the mailbox (four messages) and the calendar answer from files, and a search finds the same senders whatever its terms."
+tools:
+  MAILBOX:         {client: {kind: scripted, answers: demo/mailbox.yaml},   facts: {LEAVES_NETWORK: true,  adds: [UNTRUSTED, PERSONAL]}}
+  LOCAL_LLM:       {client: {endpoint: ../../configs/llm/local.yaml, prompts: prompts.yaml}, facts: {OUTPUT: false, LEAVES_NETWORK: false, adds: [UNTRUSTED, LLM_WRITTEN]}}
+  GOOGLE_CALENDAR: {client: {kind: scripted, answers: demo/calendar.yaml},  facts: {OUTPUT: true,  LEAVES_NETWORK: true,  adds: []}}
+  SENDERS_FILE:    {client: {kind: scripted, answers: demo/senders.yaml},   facts: {OUTPUT: false, LEAVES_NETWORK: false, adds: []}}
+  CLOCK:           {client: {kind: scripted, answers: demo/clock.yaml}, facts: {OUTPUT: false, LEAVES_NETWORK: false, adds: []}}
+  BROWSER:         {client: {kind: web},                                    facts: {OUTPUT: true,  LEAVES_NETWORK: false, adds: []}}
+modules:
+  mail.read.*:            {tool: MAILBOX, facts: {OUTPUT: false}}   # reads only
+  mail.send.*:            {tool: MAILBOX, facts: {OUTPUT: true}}    # none written: modules/mail_send.py
+  calendar.*:             {tool: GOOGLE_CALENDAR}
+  file.monitored_senders: {tool: SENDERS_FILE}
+  llm.*:                  {tool: LOCAL_LLM}
+  clock.*:                {tool: CLOCK}
+  user.*:                 {tool: BROWSER}   # what is typed in the chat (user.describe) carries no label: a judgment that it holds no personal data
+  user.enter_senders:     {tool: BROWSER, facts: {adds: [PERSONAL]}}
+log: {tool: BROWSER, facts: {DESTRUCTIVE: false}}   # the page displays what a module wrote in an error: a call of `log`, checked like a call of a module that uses this tool

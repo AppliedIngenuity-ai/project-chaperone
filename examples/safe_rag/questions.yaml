@@ -1,0 +1,30 @@
+# Questions for measuring "safe retrieval" on the Federalist Papers.
+# `expect` is what a reader of the papers would say, written before any run:
+#   answered    the papers answer it
+#   not_there   the papers say nothing about it
+#   outside     it is about the papers or their subject, and the answer is outside them (later events, other people)
+questions:
+  - {expect: answered,  question: "Why does a large republic control factions better than a small one?"}
+  - {expect: answered,  question: "What are the causes of faction?"}
+  - {expect: answered,  question: "What does Madison say about factions?"}
+  - {expect: answered,  question: "Why are the powers of government separated among departments?"}
+  - {expect: answered,  question: "Ambition must be made to counteract ambition: what does this mean?"}
+  - {expect: answered,  question: "Why should judges hold their offices during good behavior?"}
+  - {expect: answered,  question: "Why is the judiciary the least dangerous branch?"}
+  - {expect: answered,  question: "Why is a standing army in time of peace feared, and how does the Constitution answer that fear?"}
+  - {expect: answered,  question: "Why should the executive be one person and not several?"}
+  - {expect: answered,  question: "What is the Senate for?"}
+  - {expect: answered,  question: "Why must the national government have the power to tax?"}
+  - {expect: answered,  question: "What were the weaknesses of the Articles of Confederation?"}
+  - {expect: answered,  question: "Why is a bill of rights not needed in the Constitution?"}
+  - {expect: answered,  question: "Who tries impeachments, and why?"}
+  - {expect: answered,  question: "What is the use of the President's veto?"}
+  - {expect: answered,  question: "Who wrote Federalist No. 10?"}
+  - {expect: not_there, question: "What is the capital of France?"}
+  - {expect: not_there, question: "Who won the American Civil War?"}
+  - {expect: not_there, question: "At what temperature does water boil?"}
+  - {expect: not_there, question: "How do I bake sourdough bread?"}
+  - {expect: outside,   question: "When was the Constitution ratified by the last of the thirteen states?"}
+  - {expect: outside,   question: "What did the Supreme Court decide in Marbury v. Madison?"}
+  - {expect: outside,   question: "How many amendments does the Constitution have today?"}
+  - {expect: outside,   question: "What did Thomas Jefferson think of the Federalist Papers?"}

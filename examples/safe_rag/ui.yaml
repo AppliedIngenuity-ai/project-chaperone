@@ -1,0 +1,14 @@
+labels:
+  UNTRUSTED:        {words: "untrusted",          colour: "#b3261e"}
+  LLM_WRITTEN:      {words: "written by the LLM", colour: "#7a1e7a"}
+  CHECKED:          {words: "read by the check",  colour: "#8a6d1e"}
+  ORIGINAL_SOURCE:  {words: "from the documents", colour: "#1e7a1e"}
+  PERSONAL:         {words: "personal",           colour: "#1e4fa0"}
+  UNTRUSTED_SOURCE: {words: "source not trusted", colour: "#b3261e"}
+default_style: fields
+styles:
+  fields: {layout: one_part_per_line}
+  passages: {layout: passages}             # the documents of the workflow multi_pass: a box for each, its chunks closed on their best sentences
+workflow_order: [single_pass, multi_pass, answer, typical_rag, just_ask_the_llm]
+panes: []
+state_tab: true                           # the tab "State": every stored value and each run's saved values; false removes it

@@ -1,0 +1,11 @@
+# Made-up data: the mailbox and the LLM answer from the files in demo/.
+note: "Made-up data: the mailbox and the LLM answer from files. The answer is the same whatever is asked."
+tools:
+  MAILBOX:   {client: {kind: scripted, answers: demo/mailbox.yaml}, facts: {LEAVES_NETWORK: true,  adds: [UNTRUSTED, PERSONAL]}}
+  LOCAL_LLM: {client: {kind: scripted, answers: demo/llm.yaml},     facts: {OUTPUT: false, LEAVES_NETWORK: false, adds: [UNTRUSTED]}}
+  BROWSER:   {client: {kind: web},                                  facts: {OUTPUT: true, LEAVES_NETWORK: false, adds: []}}
+modules:
+  mail.*:     {tool: MAILBOX}
+  llm.answer: {tool: LOCAL_LLM}
+  user.*:     {tool: BROWSER}
+log: {tool: BROWSER, facts: {DESTRUCTIVE: false}}   # the page displays what a module wrote in an error: a call of `log`, checked like a call of a module that uses this tool

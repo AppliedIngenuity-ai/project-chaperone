@@ -1,0 +1,9 @@
+# Claude Sonnet 5.5 through the Anthropic API. A hosted model: what it is shown leaves this network.
+# Before use, in your own shell:  export ANTHROPIC_API_KEY="..."
+name: "Claude Sonnet 5.5"
+provider: anthropic
+model: claude-sonnet-5-5
+api_base: null
+api_key_env: ANTHROPIC_API_KEY
+max_tokens: 16000                 # a ceiling: the model's thinking counts against it, and an answer cut there is no answer
+timeout: 120

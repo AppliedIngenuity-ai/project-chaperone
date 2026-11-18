@@ -1,0 +1,7 @@
+labels:
+  UNTRUSTED:        {spreads: true,  may_remove: [verify.response, verify.scored]}
+  LLM_WRITTEN:      {spreads: true,  may_remove: [verify.response, verify.scored]}
+  CHECKED:          {spreads: false, may_add:    [verify.response, verify.scored]}   # the LLM's reply, after the check read it
+  ORIGINAL_SOURCE:  {spreads: false, may_add:    [verify.response, verify.scored]}   # text the check read from the store, by its id
+  PERSONAL:         {spreads: true}                                   # read by the shared rule NO_PERSONAL_DATA_OUTPUT; no tool here adds it (the shipped documents are public)
+  UNTRUSTED_SOURCE: {spreads: true}                                   # added by a documents tool whose documents the user does not vouch for; no rule reads it

@@ -1,0 +1,75 @@
+workflow: answer
+description: "Questions, answered by the LLM from the documents; each passage it quotes is checked against the documents. An empty box ends."
+start: ASK
+max_states: 200                           # a question enters at most 8 states, so a run allows at least 25 questions; the 201st entry ends it with the error too_many_states
+on_error: FAILED
+states:
+  ASK:                                    # an empty text, or the box closed, ends the run
+    steps:
+      - {call: user.describe, with: {prompt: "Your question? Send an empty box to end."}, save_as: query}
+      - {call: equals, with: {a: "{vars.query}", b: ""}, save_as: empty}
+    next: {switch: "{vars.empty}", goto: {true: DONE, false: SEARCH}}
+  SEARCH:                                 # the store's 20 best chunks; of them, at most 8 documents, 4 chunks each, 12000 characters in all
+    steps: [{call: rag.search, with: {query: "{vars.query}", candidates: 20, seen: [], max_documents: 8, max_chunks_per_document: 4,
+                                      max_chars: 12000}, save_as: found}]
+    next: ANSWER
+  ANSWER:
+    steps: [{call: llm.answer, with: {query: "{vars.query}", documents: "{vars.found.documents}"}, save_as: response}]
+    on_error: NO_LLM
+    next: VERIFY
+  VERIFY:                                 # the check reads each chunk from the store by its id
+    steps: [{call: verify.response, with: {chunk_ids: "{vars.found.chunk_ids}", response: "{vars.response}"}, save_as: report}]
+    on_error: BAD_REPLY
+    next: {switch: "{vars.report.supported}", goto: {true: SHOW, false: SEARCH_2}}
+  SHOW:
+    steps:
+      - {call: get, with: {value: {question_as_the_llm_read_it: "{vars.report.restated_query}", answer: "{vars.report.answer}",
+                                   the_llm_found_an_answer: "{vars.report.found}", from_the_documents: "{vars.report.documents}",
+                                   left_out: "{vars.report.left_out}", files_searched: "{vars.found.files_searched}",
+                                   chunks_found: "{vars.found.chunks_found}", chunks_passed_to_the_llm: "{vars.found.chunks_passed}",
+                                   note: "The marked text is in the documents, word for word. Which text is shown and marked is the LLM's choice. Nothing shows that the answer follows from it."}},
+         save_as: screen}
+      - {call: labels_of, with: {value: "{vars.screen}"}, save_as: marks}
+      - {call: user.show, with: {report: "{vars.screen}", marks: "{vars.marks}"}}
+    next: ASK
+  SEARCH_2:                               # no snippet was found: one more search, with the LLM's words for the question, leaving out the chunks seen
+    steps: [{call: rag.search, with: {query: "{vars.report.restated_query}", candidates: 20, seen: "{vars.found.chunk_ids}", max_documents: 8,
+                                      max_chunks_per_document: 4, max_chars: 12000}, save_as: found_2}]
+    next: ANSWER_2
+  ANSWER_2:                               # the LLM is passed the user's own question again
+    steps: [{call: llm.answer, with: {query: "{vars.query}", documents: "{vars.found_2.documents}"}, save_as: response_2}]
+    on_error: NO_LLM
+    next: VERIFY_2
+  VERIFY_2:
+    steps: [{call: verify.response, with: {chunk_ids: "{vars.found_2.chunk_ids}", response: "{vars.response_2}"}, save_as: report_2}]
+    on_error: BAD_REPLY
+    next: {switch: "{vars.report_2.supported}", goto: {true: SHOW_2, false: NOTHING_FOUND}}
+  SHOW_2:                                 # round two's documents only; its counts are not displayed: they come from a search on the LLM's words, untrusted
+    steps:
+      - {call: get, with: {value: {question_as_the_llm_read_it: "{vars.report_2.restated_query}", answer: "{vars.report_2.answer}",
+                                   the_llm_found_an_answer: "{vars.report_2.found}", from_the_documents: "{vars.report_2.documents}",
+                                   left_out: "{vars.report_2.left_out}", searched_again_for: "{vars.report.restated_query}",
+                                   note: "No snippet of the first search was found in the documents, so the LLM's words for the question were searched. Only the second search's documents are displayed, and not its counts: it searched the LLM's words. The marked text is in the documents, word for word. Which text is shown and marked is the LLM's choice. Nothing shows that the answer follows from it."}},
+         save_as: screen_2}
+      - {call: labels_of, with: {value: "{vars.screen_2}"}, save_as: marks_2}
+      - {call: user.show, with: {report: "{vars.screen_2}", marks: "{vars.marks_2}"}}
+    next: ASK
+  NOTHING_FOUND:                          # two searches, and no snippet found in the documents: no answer is displayed
+    steps:
+      - {call: get, with: {value: {no_snippet_found_for: "{vars.query}", searched_again_for: "{vars.report.restated_query}",
+                                   chunks_the_llm_named_relevant: "{vars.report_2.documents}",
+                                   note: "Two searches; no snippet the LLM gave was found in the documents, so no answer is displayed. The chunks below, if any, are those the LLM named relevant after the second search, and no part of them was verified; those of the first search are not displayed."}},
+         save_as: screen_none}
+      - {call: labels_of, with: {value: "{vars.screen_none}"}, save_as: marks_none}
+      - {call: user.show, with: {report: "{vars.screen_none}", marks: "{vars.marks_none}"}}
+    next: ASK
+  BAD_REPLY:
+    steps: [{call: user.show, with: {report: {note: "The LLM's reply could not be read, so no answer is displayed. Ask the question again, or in other words. The tab Log has the type of the error; an answer cut at the model's max_tokens is said in llm.jsonl, in the state folder."}, marks: {}}}]
+    next: ASK
+  NO_LLM:
+    steps: [{call: user.show, with: {report: {note: "The call of the LLM stopped on an error, so there is no answer. The tab Log has the error. If the LLM could not be reached: under the setup `local`, the LLM server that its model settings file names must be running on this machine. Under `hosted`, the environment variable that the settings file names in `api_key_env` must hold the key."}, marks: {}}}]
+    next: DONE
+  FAILED:
+    steps: [{call: user.show, with: {report: {note: "Stopped on an error. The tab Log has its type and message."}, marks: {}}}]
+    end: true
+  DONE: {end: true}

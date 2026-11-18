@@ -1,0 +1,3 @@
+labels:
+  UNTRUSTED: {spreads: true}
+  PERSONAL:  {spreads: true}

@@ -1,0 +1,18 @@
+# Harder questions for "safe retrieval": each asks about two things, or names the collection itself, or rests on a
+# false premise. Written before any run. `expect` as in questions.yaml; `papers` names where a reader
+# would look, for judging what a run displays (no code reads it).
+questions:
+  - {expect: answered,  papers: "69",         question: "Compare the powers of the President with those of the King of Great Britain."}
+  - {expect: answered,  papers: "52-53, 62-63", question: "Compare how long members of the House and of the Senate serve, and why the terms differ."}
+  - {expect: answered,  papers: "70, 55-58",  question: "Why should the executive be a single person while the legislature is numerous?"}
+  - {expect: answered,  papers: "24-29",      question: "What do the papers say about standing armies compared with the militia?"}
+  - {expect: answered,  papers: "10, 51",     question: "How does the remedy for faction relate to the separation of powers?"}
+  - {expect: answered,  papers: "78",         question: "Why may the courts void a law, when the legislature holds the power of the purse?"}
+  - {expect: answered,  papers: "64, 69, 75", question: "Who makes treaties and who declares war, and why are the two powers placed differently?"}
+  - {expect: answered,  papers: "11-12, 30-36", question: "In the Federalist Papers, how are commerce and taxation connected?"}
+  - {expect: answered,  papers: "17, 45-46",  question: "According to the Federalist Papers, which is more likely to encroach on the other: the federal government or the state governments?"}
+  - {expect: answered,  papers: "10, 51",     question: "What do the papers say about the tyranny of the majority?"}
+  - {expect: answered,  papers: "84",         question: "Did the authors want a bill of rights added to the Constitution?"}
+  - {expect: answered,  papers: "10",         question: "Why does Madison argue that a pure democracy is the best cure for faction?"}
+  - {expect: not_there, papers: "",           question: "Where do the papers say: a republic, if you can keep it?"}
+  - {expect: outside,   papers: "",           question: "Compare the Federalist Papers with the Anti-Federalist Papers on the question of a standing army."}

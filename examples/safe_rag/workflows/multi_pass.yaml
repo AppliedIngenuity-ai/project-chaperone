@@ -1,0 +1,169 @@
+workflow: multi_pass
+description: "As `single_pass`, with a second round when no quote is found: another search, for the LLM's concepts; the LLM asked which chunks bear on the question; a second answer. An empty box ends."
+start: ASK
+max_states: 200                           # a question enters at most 10 states, so a run allows at least 20 questions; the 201st entry ends it with the error too_many_states
+on_error: FAILED
+states:
+  ASK:                                    # an empty text, or the box closed, ends the run
+    steps:
+      - {call: user.describe, with: {prompt: "Your question? Send an empty box to end."}, save_as: query}
+      - {call: equals, with: {a: "{vars.query}", b: ""}, save_as: empty}
+    next: {switch: "{vars.empty}", goto: {true: DONE, false: READ}}
+  READ:                                   # the LLM is asked about the question alone, before any search: a rephrased question and two lists of its concepts. They never replace the question.
+    steps:
+      - {call: rag.overview, save_as: overview}                            # what the documents are: the setup's `overview`
+      - {call: rag.word_counts, with: {query: "{vars.query}"}, save_as: counts}     # how many chunks hold each word of the question; pass counts: "" below to give the LLM none
+      - {call: llm.read_question, with: {query: "{vars.query}", overview: "{vars.overview.text}", counts: "{vars.counts.text}"}, save_as: read}
+    on_error: NO_LLM
+    next: SEARCH
+  SEARCH:                                 # three searches, each for the store's 20 best chunks: the question as typed, the rephrased one, the primary concepts; of what they find, at most 8 documents, 4 chunks each, 12000 characters in all
+    steps:
+      - {call: rag.search_all, with: {query: "{vars.query}", rephrased: "{vars.read.rephrased}", primary: "{vars.read.primary}", candidates: 20,
+                                      max_documents: 8, max_chunks_per_document: 4, max_chars: 12000, min_phrase_count: 2}, save_as: found}
+    next: ANSWER
+  ANSWER:
+    steps: [{call: llm.answer_with_concepts, with: {query: "{vars.query}", documents: "{vars.found.documents}", overview: "{vars.overview.text}", note: ""}, save_as: response}]
+    on_error: NO_LLM
+    next: VERIFY
+  VERIFY:                                 # the check reads each chunk from the store by its id, and scores its sentences. Every number of the scores is written here.
+    steps:
+      - call: verify.scored
+        with:
+          question: "{vars.query}"
+          rephrased: "{vars.read.rephrased}"
+          primary_concepts: "{vars.read.primary}"
+          secondary_concepts: "{vars.read.supportive}"
+          chunk_ids: "{vars.found.chunk_ids}"
+          response: "{vars.response}"
+          chunks_found: "{vars.found.chunks_found}"
+          search_again_below: 5           # a second search also when the first found fewer chunks than this
+          drop_above: 0.20                # a key concept that more than this share of the chunks hold is not searched for: it says what the collection is about
+          found_by: "{vars.found.found_by}"   # which of the first searches found each chunk
+          judged_relevant: []             # the first search: the LLM is not asked which chunks bear on the question
+          weights:                        # what each adds to a sentence's or a chunk's score
+            user_word: 1.0                # a word of the user's question
+            restated_word: 0.5            # a word of the LLM's restated question
+            key_concept: 1.0              # a primary key concept of the LLM's, whole ("supreme court" is one term): what the question is about, by the LLM's own list
+            secondary_concepts_total: 1.0 # the LLM's other key concepts, all together, weigh as this many primary ones
+            verified_snippet: 4.0         # the sentence holds part of a quote of the LLM's that was found in the document
+            llm_rank: 3.0                 # to a chunk: this, divided by its place in the LLM's list of relevant chunks
+            title_match: 0.8              # a term in the title of a chunk's document, and not in the chunk, counts for the chunk at this share of its weight
+            top_sentences: 3              # a chunk's score is the sum of this many of its best sentences
+          adjustment:                     # a term in more than `above` of the chunks weighs `weight` times its weight. No term is left out.
+            - {above: 0.20, weight: 0.1}
+            - {above: 0.05, weight: 0.3}
+            - {above: 0.01, weight: 0.6}
+            - {above: 0.0,  weight: 1.0}
+          levels:                         # a term of at least this weight is coloured at this level; a lighter term is scored and not coloured
+            - {at_least: 1.5,  level: 3}
+            - {at_least: 0.6,  level: 2}
+            - {at_least: 0.25, level: 1}
+          shown_first: 2                  # the sentences of a chunk displayed before it is opened
+          unanswered: {show: 3, judged_min_concepts: 1, concepts_share: 0.75, min_concepts: 2}   # with no quote found: at most 3 chunks, each one the LLM judged to bear on the question (JUDGE) that also holds at least 1 of its key concepts, or one that holds at least three quarters of the key concepts and at least 2 (a concept in the document's title counts). A chunk that only shares words with the question is not displayed.
+          captions:
+            verified: "a quote of the LLM's was found here"
+            not_verified: "named relevant by the LLM; no quote of it was found here"
+            not_answered: {judged: "judged by the LLM to bear on your question, and holds one or more of its key concepts; no quote of the LLM's was found here", concepts: "holds nearly all of the LLM's key concepts; no quote of the LLM's was found here"}
+            found_by: {question: "found by your question", concepts: "found by what the LLM added to your question", both: "found by your question and by what the LLM added to it"}
+        save_as: report
+    on_error: BAD_REPLY
+    next: {switch: "{vars.report.search_again}", goto: {false: SHOW, true: SEARCH_2}}
+  SHOW:                                   # three parts: the question and the LLM's words; the documents; what was left out, and the note
+    steps:
+      - {call: get, with: {value: {your_question: "{vars.query}", also_searched_as: "{vars.report.searched_as}", question_as_the_llm_read_it: "{vars.report.restated_query}",
+                                   answer: "{vars.report.answer}", primary_concepts_of_the_llm: "{vars.report.primary_concepts}", secondary_concepts_of_the_llm: "{vars.report.secondary_concepts}"}}, save_as: said}
+      - {call: labels_of, with: {value: "{vars.said}"}, save_as: said_marks}
+      - {call: user.show, with: {report: "{vars.said}", marks: "{vars.said_marks}"}}
+      - {call: labels_of, with: {value: "{vars.report.documents}"}, save_as: documents_marks}
+      - {call: user.show, with: {report: "{vars.report.documents}", marks: "{vars.documents_marks}", style: passages}}
+      - {call: get, with: {value: {left_out: "{vars.report.left_out}",
+                                   note: "The text in the boxes is in the documents, word for word. Which sentences are displayed first and which words are coloured follow the question and the LLM's reply. An underlined passage is a quote the LLM gave, found in the document. Nothing shows that the answer follows from it."}},
+         save_as: closing}
+      - {call: labels_of, with: {value: "{vars.closing}"}, save_as: closing_marks}
+      - {call: user.show, with: {report: "{vars.closing}", marks: "{vars.closing_marks}"}}
+    next: ASK
+  SEARCH_2:                               # a second search, for the LLM's key concepts, each also left out in turn; joined with the first search's chunks
+    steps: [{call: rag.search_concepts, with: {concepts: "{vars.report.search_concepts}", secondary: "{vars.report.search_secondary}", fallback: "{vars.report.restated_query}",
+                                               first_chunk_ids: "{vars.found.chunk_ids}", candidates: 20, max_documents: 8,
+                                               max_chunks_per_document: 4, max_chars: 12000,
+                                               min_phrase_count: 2}, save_as: found_2}]      # a concept of several words in fewer than 2 chunks as a phrase is searched as all of its words, anywhere in a chunk
+    next: JUDGE
+  JUDGE:                                  # the LLM is asked, of each chunk, whether it bears on the user's question. `drop: false`: the documents it says yes for are passed first, none is left out. `drop: true`: the chunks it says no for are left out. `ask: false`: not asked. (The note of SHOW_2 says what is done: change it with these.)
+    steps: [{call: llm.judge_relevance, with: {query: "{vars.query}", documents: "{vars.found_2.documents}", chunk_ids: "{vars.found_2.chunk_ids}",
+                                               found_by: "{vars.found_2.found_by}", overview: "{vars.overview.text}", ask: true, drop: false}, save_as: judged}]
+    on_error: NO_LLM
+    next: ANSWER_2
+  ANSWER_2:                               # the LLM is passed the user's own question again, whole, with the chunks of both searches, and told they are likely not relevant
+    steps: [{call: llm.answer_with_concepts, with: {query: "{vars.query}", documents: "{vars.judged.documents}", overview: "{vars.overview.text}",
+                                                    note: "Note: a first search did not answer the question. Many of the chunks below come from a second, broader search and are likely not relevant. Say answer_found true only when a chunk really answers the question as asked."},
+             save_as: response_2}]
+    on_error: NO_LLM
+    next: VERIFY_2
+  VERIFY_2:                               # the same numbers as VERIFY
+    steps:
+      - call: verify.scored
+        with:
+          question: "{vars.query}"
+          rephrased: "{vars.read.rephrased}"
+          primary_concepts: "{vars.read.primary}"
+          secondary_concepts: "{vars.read.supportive}"
+          chunk_ids: "{vars.judged.chunk_ids}"
+          response: "{vars.response_2}"
+          chunks_found: "{vars.found_2.chunks_found}"
+          search_again_below: 0
+          drop_above: 0.20
+          found_by: "{vars.judged.found_by}"
+          judged_relevant: "{vars.judged.relevant}"
+          weights: {user_word: 1.0, restated_word: 0.5, key_concept: 1.0, secondary_concepts_total: 1.0, verified_snippet: 4.0, llm_rank: 3.0, title_match: 0.8, top_sentences: 3}
+          adjustment: [{above: 0.20, weight: 0.1}, {above: 0.05, weight: 0.3}, {above: 0.01, weight: 0.6}, {above: 0.0, weight: 1.0}]
+          levels: [{at_least: 1.5, level: 3}, {at_least: 0.6, level: 2}, {at_least: 0.25, level: 1}]
+          shown_first: 2
+          unanswered: {show: 3, judged_min_concepts: 1, concepts_share: 0.75, min_concepts: 2}
+          captions:
+            verified: "a quote of the LLM's was found here"
+            not_verified: "named relevant by the LLM; no quote of it was found here"
+            not_answered: {judged: "judged by the LLM to bear on your question, and holds one or more of its key concepts; no quote of the LLM's was found here", concepts: "holds nearly all of the LLM's key concepts; no quote of the LLM's was found here"}
+            found_by: {question: "found by your question", concepts: "found by what the LLM added to your question", both: "found by your question and by what the LLM added to it"}
+        save_as: report_2
+    on_error: BAD_REPLY
+    next: {switch: "{vars.report_2.supported}", goto: {true: SHOW_2, false: FIRST_AGAIN}}
+  FIRST_AGAIN:                            # the second round found no quote: the first round's answer, when it had a quote (it searched again only for having found few chunks)
+    next: {switch: "{vars.report.supported}", goto: {true: SHOW, false: NOTHING_FOUND}}
+  SHOW_2:                                 # the chunks of both searches, each saying which search found it
+    steps:
+      - {call: get, with: {value: {your_question: "{vars.query}", also_searched_as: "{vars.report_2.searched_as}", question_as_the_llm_read_it: "{vars.report_2.restated_query}",
+                                   answer: "{vars.report_2.answer}", primary_concepts_of_the_llm: "{vars.report_2.primary_concepts}", secondary_concepts_of_the_llm: "{vars.report_2.secondary_concepts}", searched_again_for: "{vars.report.searched_again_for}",
+                                   key_concepts_not_searched_as_too_common: "{vars.report.not_searched}"}}, save_as: said_2}
+      - {call: labels_of, with: {value: "{vars.said_2}"}, save_as: said_marks_2}
+      - {call: user.show, with: {report: "{vars.said_2}", marks: "{vars.said_marks_2}"}}
+      - {call: labels_of, with: {value: "{vars.report_2.documents}"}, save_as: documents_marks_2}
+      - {call: user.show, with: {report: "{vars.report_2.documents}", marks: "{vars.documents_marks_2}", style: passages}}
+      - {call: get, with: {value: {left_out: "{vars.report_2.left_out}",
+                                   note: "A second search was made, for the LLM's key concepts (for its restated question, when none is listed above). The LLM was then asked which of the chunks found bear on your question, and the documents it named were put first; each passage says which search found it. The text in the boxes is in the documents, word for word. Which sentences are displayed first and which words are coloured follow the question and the LLM's reply. An underlined passage is a quote the LLM gave, found in the document. Nothing shows that the answer follows from it."}},
+         save_as: closing_2}
+      - {call: labels_of, with: {value: "{vars.closing_2}"}, save_as: closing_marks_2}
+      - {call: user.show, with: {report: "{vars.closing_2}", marks: "{vars.closing_marks_2}"}}
+    next: ASK
+  NOTHING_FOUND:                          # two searches, and no quote of the LLM's found in the documents: no answer; passages only when the LLM judged them relevant or they hold nearly all its key concepts
+    steps:
+      - {call: get, with: {value: {your_question: "{vars.query}", also_searched_as: "{vars.report_2.searched_as}",
+                                   primary_concepts_of_the_llm: "{vars.report_2.primary_concepts}", secondary_concepts_of_the_llm: "{vars.report_2.secondary_concepts}",
+                                   searched_again_for: "{vars.report.searched_again_for}",
+                                   key_concepts_not_searched_as_too_common: "{vars.report.not_searched}",
+                                   note: "Two searches; no quote the LLM gave was found in the documents, so no answer is displayed. A passage is displayed below only when the LLM judged that it bears on your question and it holds one of the LLM's key concepts, or when it holds nearly all of them; each says which. The coloured words are words of your question."}},
+         save_as: said_none}
+      - {call: labels_of, with: {value: "{vars.said_none}"}, save_as: said_marks_none}
+      - {call: user.show, with: {report: "{vars.said_none}", marks: "{vars.said_marks_none}"}}
+      - {call: labels_of, with: {value: "{vars.report_2.documents}"}, save_as: documents_marks_none}
+      - {call: user.show, with: {report: "{vars.report_2.documents}", marks: "{vars.documents_marks_none}", style: passages}}
+    next: ASK
+  BAD_REPLY:
+    steps: [{call: user.show, with: {report: {note: "The LLM's reply could not be read, so no answer is displayed. Ask the question again, or in other words. The tab Log has the type of the error; an answer cut at the model's max_tokens is said in llm.jsonl, in the state folder."}, marks: {}}}]
+    next: ASK
+  NO_LLM:
+    steps: [{call: user.show, with: {report: {note: "The call of the LLM stopped on an error, so there is no answer. The tab Log has the error. If the LLM could not be reached: under the setup `local`, the LLM server that its model settings file names must be running on this machine. Under `hosted`, the environment variable that the settings file names in `api_key_env` must hold the key."}, marks: {}}}]
+    next: DONE
+  FAILED:
+    steps: [{call: user.show, with: {report: {note: "Stopped on an error. The tab Log has its type and message."}, marks: {}}}]
+    end: true
+  DONE: {end: true}

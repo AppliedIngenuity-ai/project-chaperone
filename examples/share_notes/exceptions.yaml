@@ -1,0 +1,6 @@
+# What this project is permitted that a rule forbids. Nothing permits sending by e-mail what is UNTRUSTED or PERSONAL:
+# the last call of the workflow is a possible violation on purpose (see setups/demo.yaml).
+exceptions:
+  - {id: MAILBOX_APPROVED_EX,  rule: NOTHING_LEAVES_NETWORK,      except: {call: {where: {MAILBOX: true}}}}
+  - {id: UNTRUSTED_TO_USER_EX, rule: NO_UNTRUSTED_DATA_TO_OUTPUT, except: {call: {where: {BROWSER: true}}}}
+  - {id: PERSONAL_TO_USER_EX,  rule: NO_PERSONAL_DATA_OUTPUT,     except: {call: {where: {BROWSER: true}}}}

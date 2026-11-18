@@ -1,0 +1,36 @@
+workflow: reset_all
+description: "Removes the calendar entries, the monitored senders and everything else stored."
+start: ASK
+on_error: FAILED
+states:
+  ASK:                                    # nothing is removed unless the user ticks the line and confirms
+    steps:
+      - {call: user.choose, with: {items: ["Remove every calendar entry this system made, every monitored sender, and everything else it has stored"],
+                                   prompt: "Reset everything? This cannot be undone."}, save_as: ticked}
+      - {call: lists.sizes, with: {lists: {ticked: "{vars.ticked}"}}, save_as: sizes}
+    next: {switch: "{vars.sizes.ticked}", goto: {1: CLEAR}, else: KEPT}
+  CLEAR:                                  # every store of system.yaml, back to the value it is declared with
+    steps:
+      - {call: calendar.remove_entries, save_as: gone}
+      - {call: store.put, with: {store: MONITORED_SENDERS, value: []}}
+      - {call: store.put, with: {store: FOUND_SENDERS,     value: []}}
+      - {call: store.put, with: {store: HANDLED_MESSAGES,  value: []}}
+      - {call: store.put, with: {store: NEEDS_ATTENTION,   value: []}}
+      - {call: store.put, with: {store: SCANNED_MESSAGES,  value: []}}
+      - {call: store.put, with: {store: LINKS_TO_APPROVE,  value: []}}
+      - {call: store.put, with: {store: APPROVED_LINKS,    value: []}}
+      - {call: store.put, with: {store: DECLINED_LINKS,    value: []}}
+      - {call: store.put, with: {store: TURNS,             value: 0}}
+      - {call: store.put, with: {store: PROBLEMS,          value: 0}}
+      - {call: user.show, with: {report: {note: "Done. Nothing is monitored, handled or on the calendar. Start assistant to begin again.",
+                                          entries_removed: "{vars.gone.removed}"}, marks: {}}}
+    end: true
+  KEPT:
+    steps: [{call: user.show, with: {report: {note: "Nothing was removed."}, marks: {}}}]
+    end: true
+  FAILED:
+    steps:
+      - {call: get,       with: {value: {note: "Stopped on an error. What was removed stays removed.", error_type: "{error.type}"}}, save_as: screen}
+      - {call: labels_of, with: {value: "{vars.screen}"}, save_as: marks}
+      - {call: user.show, with: {report: "{vars.screen}", marks: "{vars.marks}"}}
+    end: true

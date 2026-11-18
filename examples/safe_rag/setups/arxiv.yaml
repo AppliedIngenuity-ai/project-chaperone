@@ -1,0 +1,34 @@
+# Real: abstracts of arXiv papers, fetched by a loader script, and the LLM server on this machine.
+#
+# First, fetch the abstracts (about ten minutes for one category and one year; arXiv asks loaders to go slowly):
+#   python scripts/load_arxiv.py --category cs.AI --since 2025-11-14
+# and later, to add what arXiv published or changed since:
+#   python scripts/load_arxiv.py --category cs.AI
+# Then:  python -m chaperone run examples/safe_rag --setup arxiv
+#
+# For another category, fetch it and change `database` and `overview` below, in private/local.yaml (README). The database is in `data/`, which is not
+# in git and is not deleted with the state folder; the search index made from it is in the state folder.
+#
+# `not_before` (a day, "2026-06-01", or "" for none): documents dated before it are not found.
+# `recency_boost` (0 for none): of the chunks a search finds, the one dated last has its score raised by this share
+# (0.1: a tenth), the one dated first by nothing; so of two that fit about equally, the later comes first.
+# A paper's date is the day of its first version.
+#
+# `adds: []` on DOCS_DB says you vouch for what is in that database. arXiv abstracts are written by anyone who
+# submits a paper: for documents you do not vouch for, write `adds: [UNTRUSTED_SOURCE]`, and everything displayed
+# from them is marked "source not trusted". It marks; it stops nothing.
+note: "Real: abstracts of arXiv papers in the database DOCS_DB names (scripts/load_arxiv.py fetches them), and the LLM server on this machine. Nothing leaves this machine when a question is asked."
+tools:
+  DOCS_DB:  {client: {kind: document_db, database: ../../data/arxiv/cs.AI.sqlite, file: arxiv.sqlite, block_chars: 2500, tokenizer: porter,
+                      not_before: "", recency_boost: 0.1,
+                      overview: "Abstracts of research papers submitted to arXiv in the category cs.AI (artificial intelligence), cross-listed papers included; each document is one paper's title and abstract."},
+             facts: {OUTPUT: false, LEAVES_NETWORK: false, adds: []}}
+  LLM:      {client: {endpoint: ../../configs/llm/local.yaml, prompts: prompts.yaml}, facts: {OUTPUT: false, LEAVES_NETWORK: false, adds: [UNTRUSTED, LLM_WRITTEN]}}
+  BROWSER:  {client: {kind: web}, facts: {OUTPUT: true, LEAVES_NETWORK: false, adds: []}}
+modules:
+  rag.*:           {tool: DOCS_DB}
+  verify.response: {tool: DOCS_DB}
+  verify.scored:   {tool: DOCS_DB}
+  llm.*:           {tool: LLM}
+  user.*:          {tool: BROWSER}
+log: {tool: BROWSER, facts: {DESTRUCTIVE: false}}   # the page displays what a module wrote in an error: a call of `log`, checked like a call of a module that uses this tool

@@ -1,0 +1,69 @@
+workflow: discover_links
+description: "Reads the monitored senders' mail for the forms of their tracking links, then asks which to use."
+start: LOAD
+max_states: 2000
+on_error: FAILED
+states:
+  LOAD:
+    steps:
+      - {call: file.monitored_senders, save_as: from_file}
+      - {call: store.get, with: {store: MONITORED_SENDERS}, save_as: from_store}
+    next: FETCH
+  FETCH:                                  # a message this workflow has not read; update_calendar keeps its own record
+    steps:
+      - {call: store.get, with: {store: SCANNED_MESSAGES}, save_as: scanned}
+      - {call: mail.read.fetch_next_by_sender, with: {senders: ["{vars.from_file}", "{vars.from_store}"], handled: "{vars.scanned}"}, save_as: fetched}
+    next: {switch: "{vars.fetched.found}", goto: {true: READ, false: COUNT}}
+  READ:                                   # only the tracking number is needed; a message that has none is passed over
+    steps:
+      - {call: llm.copy_values,       with: {message: "{vars.fetched.message}", max_chars: 20000}, save_as: copied}
+      - {call: check.delivery_values, with: {values: "{vars.copied}", required: [tracking_number], optional: [],
+                                             message: "{vars.fetched.message}", number_form: "[A-Za-z0-9]{8,35}", number_in_link: false,
+                                             date_order: month_first, day_words: {}, days_before: 0, days_after: 0}, save_as: checked}
+      - {call: store.get,          with: {store: APPROVED_LINKS}, save_as: approved}
+      - {call: links.derive,       with: {message: "{vars.fetched.message}", number: "{vars.checked.tracking_number}", max_chars: 1000}, save_as: derived}
+      - {call: store.get,          with: {store: DECLINED_LINKS}, save_as: declined}
+      - {call: links.not_approved, with: {rules: "{vars.derived.rules}", approved: "{vars.approved}", declined: "{vars.declined}"}, save_as: new_rules}
+      - {call: store.add,          with: {store: LINKS_TO_APPROVE, items: "{vars.new_rules}"}}
+    on_error: SCANNED
+    next: SCANNED
+  SCANNED:
+    steps:
+      - {call: get,  with: {value: "{vars.fetched.message}", path: id}, save_as: id}
+      - {call: store.add,  with: {store: SCANNED_MESSAGES, items: ["{vars.id}"]}}
+    next: FETCH
+  COUNT:                                  # the mail is read: are there forms the user has not been asked about?
+    steps:
+      - {call: store.get,   with: {store: LINKS_TO_APPROVE}, save_as: waiting}
+      - {call: lists.sizes, with: {lists: {waiting: "{vars.waiting}"}}, save_as: sizes}
+    next: {switch: "{vars.sizes.waiting}", goto: {0: NONE}, else: ASK}
+  ASK:                                    # ticking a form approves it; the rest are then offered to decline
+    steps:
+      - {call: user.choose_links, with: {items: "{vars.waiting}", prompt: "Write tracking links that fit which of these rules on calendar entries? A link is written as its message has it, with its other parameters."}, save_as: chosen}
+      - {call: store.add,         with: {store: APPROVED_LINKS, items: "{vars.chosen}"}}
+      - {call: store.remove,      with: {store: LINKS_TO_APPROVE, items: "{vars.chosen}"}}
+      - {call: store.get,         with: {store: LINKS_TO_APPROVE}, save_as: left}
+      - {call: lists.sizes,       with: {lists: {left: "{vars.left}"}}, save_as: left_sizes}
+    next: {switch: "{vars.left_sizes.left}", goto: {0: APPROVED}, else: DECLINE}
+  DECLINE:                                # the rules not approved: ticking one declines it; one not ticked stays in the list
+    steps:
+      - {call: user.choose_links, with: {items: "{vars.left}", prompt: "Decline which of these rules? A declined rule is not offered again, and no link that fits it is written."}, save_as: declined}
+      - {call: store.add,         with: {store: DECLINED_LINKS, items: "{vars.declined}"}}
+      - {call: store.remove,      with: {store: LINKS_TO_APPROVE, items: "{vars.declined}"}}
+    next: APPROVED
+  APPROVED:
+    steps:
+      - {call: store.get,         with: {store: APPROVED_LINKS}, save_as: approved}
+      - {call: get,               with: {value: {approved_link_forms: "{vars.approved}"}}, save_as: screen}
+      - {call: labels_of,         with: {value: "{vars.screen}"}, save_as: marks}
+      - {call: user.show,         with: {report: "{vars.screen}", marks: "{vars.marks}"}}
+    end: true
+  NONE:
+    steps: [{call: user.show, with: {report: {note: "The mail was read. No new form of tracking link was found."}, marks: {}}}]
+    end: true
+  FAILED:
+    steps:
+      - {call: get,       with: {value: {note: "Stopped on an error. What was found so far is kept.", error_type: "{error.type}"}}, save_as: screen}
+      - {call: labels_of, with: {value: "{vars.screen}"}, save_as: marks}
+      - {call: user.show, with: {report: "{vars.screen}", marks: "{vars.marks}"}}
+    end: true

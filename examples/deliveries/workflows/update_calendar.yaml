@@ -1,0 +1,95 @@
+workflow: update_calendar
+description: "Unattended: reads new mail from the monitored senders and writes the calendar."
+start: LOAD
+max_states: 2000
+on_error: FAILED
+states:
+  LOAD:
+    steps:
+      - {call: file.monitored_senders, save_as: from_file}
+      - {call: store.get, with: {store: MONITORED_SENDERS}, save_as: from_store}
+    next: FETCH
+  FETCH:
+    steps:
+      - {call: store.get, with: {store: HANDLED_MESSAGES}, save_as: handled}
+      - {call: mail.read.fetch_next_by_sender, with: {senders: ["{vars.from_file}", "{vars.from_store}"], handled: "{vars.handled}"}, save_as: fetched}
+    next: {switch: "{vars.fetched.found}", goto: {true: FOUND, false: DONE}}
+  FOUND:                                  # news for the page (ui.yaml, show_updates); an error here does not stop the message
+    steps:
+      - {call: pick,             with: {value: "{vars.fetched.message}", fields: [from, received_day, subject]}, save_as: found}
+      - {call: get,              with: {value: {message_found: "{vars.found}"}}, save_as: screen}
+      - {call: labels_of,        with: {value: "{vars.screen}"}, save_as: marks}
+      - {call: user.show_update, with: {report: "{vars.screen}", marks: "{vars.marks}"}}
+    on_error: CLASSIFY
+    next: CLASSIFY
+  CLASSIFY:                               # an error here, or a kind with no key, sets the message aside
+    steps:
+      - {call: llm.classify_message, with: {message: "{vars.fetched.message}", max_chars: 20000}, save_as: kind}
+    on_error: SET_ASIDE
+    next: {switch: "{vars.kind.kind}", goto: {scheduled: COPY_SCHEDULED, delivered: COPY_DELIVERED, other: HANDLED}}
+  COPY_SCHEDULED:                         # an entry needs the tracking number and the date; the times if the message gives them
+    steps:
+      - {call: llm.copy_values,       with: {message: "{vars.fetched.message}", max_chars: 20000}, save_as: copied}
+      - {call: check.delivery_values, with: {values: "{vars.copied}", required: [tracking_number, date], optional: [from_time, to_time],
+                                             message: "{vars.fetched.message}", number_form: "[A-Za-z0-9]{8,35}", number_in_link: false,
+                                             date_order: month_first, day_words: {today: 0, tonight: 0, soon: 0, tomorrow: 1},
+                                             days_before: 0, days_after: 14}, save_as: checked}
+    on_error: SET_ASIDE
+    next: LINK
+  COPY_DELIVERED:                         # a delivered notice needs the tracking number; its day and time if it gives them
+    steps:
+      - {call: llm.copy_values,       with: {message: "{vars.fetched.message}", max_chars: 20000}, save_as: copied}
+      - {call: check.delivery_values, with: {values: "{vars.copied}", required: [tracking_number], optional: [date, delivered_time],
+                                             message: "{vars.fetched.message}", number_form: "[A-Za-z0-9]{8,35}", number_in_link: false,
+                                             date_order: month_first, day_words: {today: 0, tonight: 0, yesterday: -1},
+                                             days_before: 2, days_after: 0}, save_as: checked}
+    on_error: SET_ASIDE
+    next: LINK
+  LINK:                                   # the shipper's name and the message's subject, sanitized and still untrusted; the message's own link, written when it fits a rule the user approved
+    steps:
+      - {call: string.clean,       with: {value: "{vars.copied.shipper}", source_type: html, max_chars: 60, options: {trim: true, strip_urls: true}}, save_as: shipper}
+      - {call: string.clean,       with: {value: "{vars.fetched.message.subject}", source_type: html, max_chars: 80, options: {trim: true, strip_urls: true}}, save_as: subject}
+      - {call: store.get,          with: {store: APPROVED_LINKS}, save_as: approved}
+      - {call: links.derive,       with: {message: "{vars.fetched.message}", number: "{vars.checked.tracking_number}", max_chars: 1000}, save_as: derived}
+      - {call: store.get,          with: {store: DECLINED_LINKS}, save_as: declined}
+      - {call: links.not_approved, with: {rules: "{vars.derived.rules}", approved: "{vars.approved}", declined: "{vars.declined}"}, save_as: new_rules}
+      - {call: store.add,          with: {store: LINKS_TO_APPROVE, items: "{vars.new_rules}"}}
+      - {call: links.fill,         with: {message: "{vars.fetched.message}", approved: "{vars.approved}", number: "{vars.checked.tracking_number}", max_chars: 1000}, save_as: link}
+    next: {switch: "{vars.kind.kind}", goto: {scheduled: WRITE, delivered: MARK}}
+  WRITE:
+    steps: [{call: calendar.write_entry, with: {entry: "{vars.checked}", link: "{vars.link}", shipper: "{vars.shipper}", subject: "{vars.subject}", title: "Delivery", no_time: ["08:00", "17:00"],
+                                                start_if_only_end: "09:00", end_if_only_start: "19:00"}}]
+    next: WRITTEN
+  WRITTEN:                                # news for the page; the entry is written, so an error here changes nothing
+    steps:
+      - {call: get,              with: {value: {calendar_entry_written: "{vars.checked}", shipper: "{vars.shipper.text}"}}, save_as: screen}
+      - {call: labels_of,        with: {value: "{vars.screen}"}, save_as: marks}
+      - {call: user.show_update, with: {report: "{vars.screen}", marks: "{vars.marks}"}}
+    on_error: HANDLED
+    next: HANDLED
+  MARK:                                   # the time delivered and 30 minutes; with no time, the 15 minutes before the message
+    steps: [{call: calendar.mark_delivered, with: {entry: "{vars.checked}", link: "{vars.link}", shipper: "{vars.shipper}", subject: "{vars.subject}", title: "Delivered", minutes: 30,
+                                                   minutes_before_message: 15, no_time: ["08:00", "17:00"]}}]
+    next: MARKED
+  MARKED:
+    steps:
+      - {call: get,              with: {value: {calendar_entry_marked_delivered: "{vars.checked}", shipper: "{vars.shipper.text}"}}, save_as: screen}
+      - {call: labels_of,        with: {value: "{vars.screen}"}, save_as: marks}
+      - {call: user.show_update, with: {report: "{vars.screen}", marks: "{vars.marks}"}}
+    on_error: HANDLED
+    next: HANDLED
+  SET_ASIDE:                              # the workflow does not stop for one message; the error says why
+    steps: [{call: store.add, with: {store: NEEDS_ATTENTION, items: [{message: "{vars.fetched.message}", error: "{error}"}]}}]
+    next: HANDLED
+  HANDLED:                                # the message is not fetched again, in this run or a later one
+    steps:
+      - {call: get,  with: {value: "{vars.fetched.message}", path: id}, save_as: id}
+      - {call: store.add,  with: {store: HANDLED_MESSAGES, items: ["{vars.id}"]}}
+    next: FETCH
+  DONE:                                   # the mail is read. Last: a delivery whose day passed with no notice that it was delivered
+    steps:
+      - {call: clock.today, save_as: now}
+      - {call: calendar.flag_unconfirmed, with: {today: "{vars.now.day}", scheduled_title: "Delivery", title: "No delivered notice",
+                                                 days: 1, note: "No notice that this parcel was delivered was received."}}
+    end: true
+  FAILED: {end: true}

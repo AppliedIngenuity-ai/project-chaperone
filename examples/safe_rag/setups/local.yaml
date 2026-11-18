@@ -1,0 +1,31 @@
+# Real: the Federalist Papers in the folder `corpus`, searched on this machine, and the LLM server on this machine.
+#
+# To ask about your own documents, change `folder`: a path relative to this project, an absolute path, or one that
+# begins with ~ (folder: ~/notes). Files ending in one of `extensions` are read; names beginning with a dot are not.
+# `tokenizer: porter` matches English words by their stem ("factions" finds "faction"); for any other language write
+# `tokenizer: unicode61`, which matches words as written.
+#
+# `overview` says what the documents are, in a sentence or two; write your own for your folder, or "" for none. The
+# workflows single_pass and multi_pass pass it to the LLM, so that its key concepts do not name the collection itself.
+#
+# `adds: []` on DOCS_DB says you vouch for what is in that folder. For documents you do not vouch for (mail, pages
+# from the web), write `adds: [UNTRUSTED_SOURCE]`: everything displayed from them is then marked "source not trusted".
+# It marks; it stops nothing.
+#
+# The LLM server is named in ../../configs/llm/local.yaml. For another server (Ollama: http://localhost:11434/v1),
+# change its `api_base` and `model` in private/local.yaml, not here: README.md, "Step 1: your LLM". The check reads the facts written on the LLM line, not the settings file: for an LLM at a vendor, use the setup
+# `hosted`, whose LLM line says that what it is passed leaves this network.
+note: "Real: the documents in the folder DOCS_DB names, and the LLM server on this machine. Nothing leaves this machine."
+tools:
+  DOCS_DB:  {client: {kind: documents, folder: corpus, extensions: [.txt, .md], file: documents.sqlite, block_chars: 1200, tokenizer: porter,
+                      overview: "The Federalist Papers: 85 essays of 1787 and 1788 by Alexander Hamilton, James Madison and John Jay, arguing for the ratification of the Constitution of the United States."},
+             facts: {OUTPUT: false, LEAVES_NETWORK: false, adds: []}}
+  LLM:      {client: {endpoint: ../../configs/llm/local.yaml, prompts: prompts.yaml}, facts: {OUTPUT: false, LEAVES_NETWORK: false, adds: [UNTRUSTED, LLM_WRITTEN]}}
+  BROWSER:  {client: {kind: web}, facts: {OUTPUT: true, LEAVES_NETWORK: false, adds: []}}
+modules:
+  rag.*:           {tool: DOCS_DB}
+  verify.response: {tool: DOCS_DB}
+  verify.scored:   {tool: DOCS_DB}
+  llm.*:           {tool: LLM}
+  user.*:          {tool: BROWSER}
+log: {tool: BROWSER, facts: {DESTRUCTIVE: false}}   # the page displays what a module wrote in an error: a call of `log`, checked like a call of a module that uses this tool

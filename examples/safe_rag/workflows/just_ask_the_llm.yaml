@@ -1,0 +1,29 @@
+workflow: just_ask_the_llm
+description: "For comparison: the LLM answers alone. No document is searched and nothing is checked. An empty box ends."
+start: ASK
+max_states: 200                           # a question enters 3 states; the 201st entry ends the run with the error too_many_states
+on_error: FAILED
+states:
+  ASK:                                    # an empty text, or the box closed, ends the run
+    steps:
+      - {call: user.describe, with: {prompt: "Your question, for the LLM alone? Send an empty box to end."}, save_as: query}
+      - {call: equals, with: {a: "{vars.query}", b: ""}, save_as: empty}
+    next: {switch: "{vars.empty}", goto: {true: DONE, false: ANSWER}}
+  ANSWER:
+    steps: [{call: llm.answer_alone, with: {query: "{vars.query}"}, save_as: response}]
+    on_error: NO_LLM
+    next: SHOW
+  SHOW:                                   # displayed by user.show_unchecked: the one call UNCHECKED_LLM_TO_USER_EX permits
+    steps:
+      - {call: get, with: {value: {your_question: "{vars.query}", answer: "{vars.response.text}",
+                                   note: "This answer is the LLM's alone. No document was searched and nothing was checked."}}, save_as: screen}
+      - {call: labels_of, with: {value: "{vars.screen}"}, save_as: marks}
+      - {call: user.show_unchecked, with: {report: "{vars.screen}", marks: "{vars.marks}"}}
+    next: ASK
+  NO_LLM:
+    steps: [{call: user.show, with: {report: {note: "The call of the LLM stopped on an error, so there is no answer. The tab Log has the error. If the LLM could not be reached: under the setup `local`, the LLM server that its model settings file names must be running on this machine. Under `hosted`, the environment variable that the settings file names in `api_key_env` must hold the key."}, marks: {}}}]
+    next: DONE
+  FAILED:
+    steps: [{call: user.show, with: {report: {note: "Stopped on an error. The tab Log has its type and message."}, marks: {}}}]
+    end: true
+  DONE: {end: true}

@@ -1,0 +1,13 @@
+exceptions:
+  - {id: MAILBOX_APPROVED_EX,     rule: NOTHING_LEAVES_NETWORK,      except: {call: {where: {MAILBOX: true}}}}
+  - {id: CALENDAR_APPROVED_EX,    rule: NOTHING_LEAVES_NETWORK,      except: {call: {where: {GOOGLE_CALENDAR: true}}}}
+  - {id: UNTRUSTED_TO_USER_EX,    rule: NO_UNTRUSTED_DATA_TO_OUTPUT, except: {call: {where: {BROWSER: true}}}}
+  - {id: CHECKED_TO_CALENDAR_EX,  rule: NO_UNTRUSTED_DATA_TO_OUTPUT, except: {call: [calendar.write_entry, calendar.mark_delivered], carrying: {CHECKED: true}}}
+  - {id: SHIPPER_TO_CALENDAR_EX,  rule: NO_UNTRUSTED_DATA_TO_OUTPUT, except: {call: [calendar.write_entry, calendar.mark_delivered], carrying: {SANITIZED: true}}}
+  - {id: LLM_CHOOSES_STEP_EX,     rule: NO_DECISIONS_FROM_UNTRUSTED, except: {call: [decide]}}
+  - {id: WRITE_ENTRY_EX,          rule: NO_DESTRUCTIVE_ACTIONS,      except: {call: [calendar.write_entry]}}
+  - {id: MARK_DELIVERED_EX,       rule: NO_DESTRUCTIVE_ACTIONS,      except: {call: [calendar.mark_delivered]}}
+  - {id: REMOVE_OWN_ENTRIES_EX,   rule: NO_DESTRUCTIVE_ACTIONS,      except: {call: [calendar.remove_entries]}}
+  - {id: FLAG_UNCONFIRMED_EX,     rule: NO_DESTRUCTIVE_ACTIONS,      except: {call: [calendar.flag_unconfirmed]}}
+  - {id: PERSONAL_TO_USER_EX,     rule: NO_PERSONAL_DATA_OUTPUT,     except: {call: {where: {BROWSER: true}}}}
+  - {id: PERSONAL_TO_CALENDAR_EX, rule: NO_PERSONAL_DATA_OUTPUT,     except: {call: {where: {GOOGLE_CALENDAR: true}}}}

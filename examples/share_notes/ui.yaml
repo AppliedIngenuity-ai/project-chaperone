@@ -1,0 +1,8 @@
+labels:
+  UNTRUSTED:   {words: "untrusted",          colour: "#b3261e"}
+  PERSONAL:    {words: "personal",           colour: "#1e4fa0"}
+  LLM_WRITTEN: {words: "written by the LLM", colour: "#7a1e7a"}
+default_style: fields
+styles:
+  fields: {layout: one_part_per_line}
+panes: []

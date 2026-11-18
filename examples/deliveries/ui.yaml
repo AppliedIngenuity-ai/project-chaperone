@@ -1,0 +1,16 @@
+labels:                                   # the words and the colour displayed for each label, in this order
+  UNTRUSTED:        {words: "untrusted",          colour: "#b3261e"}
+  LLM_WRITTEN:      {words: "written by the LLM", colour: "#7a1e7a"}
+  PERSONAL:         {words: "personal",           colour: "#1e4fa0"}
+  SANITIZED:        {words: "sanitized",          colour: "#8a6d1e"}
+  CHECKED:          {words: "checked",            colour: "#1d5e20"}
+default_style: fields
+styles:
+  fields: {layout: one_part_per_line}
+  rows:   {layout: table}
+panes:
+  - {title: "Monitoring", stores: [MONITORED_SENDERS, HANDLED_MESSAGES, NEEDS_ATTENTION, LINKS_TO_APPROVE, APPROVED_LINKS, DECLINED_LINKS]}
+show_updates: true                        # the conversation displays what update_calendar is doing: each message found, each entry written or marked; false displays none
+state_tab: true                           # the tab "State": every stored value and each run's saved values; false removes it
+reset_control: true                       # on the tab "State": the control that deletes everything this system keeps; false removes it
+workflow_order: [assistant, discover_links, update_calendar, reset_entries, reset_all]   # the order the page lists them in; one not named follows

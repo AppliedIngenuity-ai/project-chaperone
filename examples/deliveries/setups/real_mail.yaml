@@ -1,0 +1,20 @@
+# Your mailbox, read only, and the LLM server on this machine. The calendar is a file in the state folder, not Google.
+# `timezone` is yours: the day a message was received is taken there. The mail login is in the environment: fill in private/env.sh (template: private.example/env.sh), then `source private/env.sh`.
+note: "Real: the mailbox (read only) and the LLM, on this machine. Not Google: the calendar is the file deliveries.ics in the state folder."
+tools:
+  MAILBOX:         {client: {kind: imap, days: 21, max_messages: 300, authenticated_only: true, timezone: America/New_York}, facts: {LEAVES_NETWORK: true,  adds: [UNTRUSTED, PERSONAL]}}
+  LOCAL_LLM:       {client: {endpoint: ../../configs/llm/local.yaml, prompts: prompts.yaml}, facts: {OUTPUT: false, LEAVES_NETWORK: false, adds: [UNTRUSTED, LLM_WRITTEN]}}
+  GOOGLE_CALENDAR: {client: {kind: calendar_file, file: deliveries.ics, name: "Deliveries (test)"}, facts: {OUTPUT: true,  LEAVES_NETWORK: true,  adds: []}}
+  SENDERS_FILE:    {client: {kind: text_file, file: senders.txt}, facts: {OUTPUT: false, LEAVES_NETWORK: false, adds: []}}
+  CLOCK:           {client: {kind: clock, timezone: America/New_York}, facts: {OUTPUT: false, LEAVES_NETWORK: false, adds: []}}
+  BROWSER:         {client: {kind: web},                                    facts: {OUTPUT: true,  LEAVES_NETWORK: false, adds: []}}
+modules:
+  mail.read.*:            {tool: MAILBOX, facts: {OUTPUT: false}}   # reads only
+  mail.send.*:            {tool: MAILBOX, facts: {OUTPUT: true}}    # none written: modules/mail_send.py
+  calendar.*:             {tool: GOOGLE_CALENDAR}
+  file.monitored_senders: {tool: SENDERS_FILE}
+  llm.*:                  {tool: LOCAL_LLM}
+  clock.*:                {tool: CLOCK}
+  user.*:                 {tool: BROWSER}   # what is typed in the chat (user.describe) carries no label: a judgment that it holds no personal data
+  user.enter_senders:     {tool: BROWSER, facts: {adds: [PERSONAL]}}
+log: {tool: BROWSER, facts: {DESTRUCTIVE: false}}   # the page displays what a module wrote in an error: a call of `log`, checked like a call of a module that uses this tool

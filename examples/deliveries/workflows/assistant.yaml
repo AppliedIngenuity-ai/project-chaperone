@@ -1,0 +1,137 @@
+workflow: assistant
+description: "A conversation: choose whose mail is monitored."
+start: GREET
+max_states: 400
+on_error: FAILED
+states:
+  GREET:
+    steps:
+      - {call: store.put, with: {store: FOUND_SENDERS, value: []}}
+      - {call: store.put, with: {store: TURNS,         value: 0}}
+      - {call: store.put, with: {store: PROBLEMS,      value: 0}}
+      - {call: store.get, with: {store: MONITORED_SENDERS}, save_as: monitored}
+      - {call: store.get, with: {store: LINKS_TO_APPROVE},  save_as: waiting}
+      - {call: get,           with: {value: {monitored_senders: "{vars.monitored}", tracking_links_awaiting_approval: "{vars.waiting}"}}, save_as: screen}
+      - {call: labels_of,     with: {value: "{vars.screen}"}, save_as: marks}
+      - {call: user.show,     with: {report: "{vars.screen}", marks: "{vars.marks}"}}
+      - {call: user.describe, with: {prompt: "I help set up delivery monitoring. What do you want to do? Name a carrier or a shop to search your mail for its senders (\"add FedEx\"). Say \"enter an address\" to type addresses in a box: an address typed here, in the chat, is not used. Also: stop monitoring a sender, review messages that could not be read, approve tracking links, or \"done\"."}, save_as: reply}
+    next: TURN
+  TURN:                                   # one turn of the conversation
+    steps:
+      - {call: store.get,       with: {store: TURNS}, save_as: turns}
+      - {call: counter.add_one, with: {count: "{vars.turns}", limit: 12}, save_as: turn}
+      - {call: store.put,       with: {store: TURNS, value: "{vars.turn.count}"}}
+    next: {switch: "{vars.turn.too_many}", goto: {true: TOO_MANY_TURNS, false: ROUTE}}
+  ROUTE:                                  # the LLM chooses among the options offered now
+    steps:
+      - {call: store.get,     with: {store: FOUND_SENDERS},     save_as: found}
+      - {call: store.get,     with: {store: MONITORED_SENDERS}, save_as: monitored}
+      - {call: store.get,     with: {store: NEEDS_ATTENTION},   save_as: attention}
+      - {call: store.get,     with: {store: LINKS_TO_APPROVE},  save_as: waiting}
+      - {call: lists.sizes,   with: {lists: {found: "{vars.found}", monitored: "{vars.monitored}", attention: "{vars.attention}", links: "{vars.waiting}"}}, save_as: sizes}
+      - {call: llm.next_step, with: {asked: "{vars.reply.asked}", reply: "{vars.reply.reply}", sizes: "{vars.sizes}",
+                                     options: {search: true, add: true, clarify: true, done: true, choose: "{vars.sizes.found}",
+                                               remove: "{vars.sizes.monitored}", review: "{vars.sizes.attention}", links: "{vars.sizes.links}"},
+                                     not_offered: "There is nothing to {option} at the moment: that list is empty. What else?"},
+         save_as: step}
+    next: {switch: "{vars.step.option}", goto: {search: SEARCH, add: ADD, clarify: CLARIFY, choose: CHOOSE, remove: REMOVE,
+                                             review: REVIEW, links: LINKS, done: DONE, unusable: BAD_ANSWER}}
+  BAD_ANSWER:
+    steps:
+      - {call: store.get,       with: {store: PROBLEMS}, save_as: problems}
+      - {call: counter.add_one, with: {count: "{vars.problems}", limit: 3}, save_as: problem}
+      - {call: store.put,       with: {store: PROBLEMS, value: "{vars.problem.count}"}}
+      - {call: user.show,       with: {report: {note: "The assistant's answer could not be used."}, marks: {}}}
+    next: {switch: "{vars.problem.too_many}", goto: {true: FAILED_BAD_LLM, false: ROUTE}}
+  CLARIFY:
+    steps:
+      - {call: get,           with: {value: {assistant: "{vars.step.message}"}}, save_as: screen}
+      - {call: labels_of,     with: {value: "{vars.screen}"}, save_as: marks}
+      - {call: user.show,     with: {report: "{vars.screen}", marks: "{vars.marks}"}}
+      - {call: user.describe, with: {prompt: "Your answer?", asked: "{vars.step.message}"}, save_as: reply}
+    next: TURN
+  SEARCH:                                 # the terms are shown, then run
+    steps:
+      - {call: get,         with: {value: {searching_mail_for: "{vars.step.terms}"}}, save_as: screen}
+      - {call: labels_of,   with: {value: "{vars.screen}"}, save_as: marks}
+      - {call: user.show,   with: {report: "{vars.screen}", marks: "{vars.marks}"}}
+      - {call: mail.read.search_senders, with: {terms: "{vars.step.terms}", subjects: 3}, save_as: found_now}
+      - {call: store.add,   with: {store: FOUND_SENDERS, items: "{vars.found_now}"}}
+    next: CHOOSE
+  CHOOSE:                                 # the user ticks senders found; the assistant's LLM is not passed the list
+    steps:
+      - {call: store.get, with: {store: FOUND_SENDERS},     save_as: found}
+      - {call: store.get, with: {store: MONITORED_SENDERS}, save_as: monitored}
+      - {call: user.choose_senders, with: {items: "{vars.found}", prompt: "Monitor mail from which of these senders?",
+                                           monitored: "{vars.monitored}"}, save_as: new_senders}
+    next: SAVE
+  ADD:                                    # the user types addresses, sees what the mailbox has from each, then ticks the ones to monitor
+    steps:
+      - {call: user.enter_senders,  with: {prompt: "Addresses to add, one per line. What is typed in this box is not passed to the LLM."}, save_as: entered}
+      - {call: mail.read.count_messages, with: {addresses: "{vars.entered}"}, save_as: counted}
+      - {call: get,         with: {value: {addresses_entered: "{vars.entered}", messages_from_each_in_the_mailbox: "{vars.counted}"}}, save_as: screen}
+      - {call: labels_of,   with: {value: "{vars.screen}"}, save_as: marks}
+      - {call: user.show,   with: {report: "{vars.screen}", marks: "{vars.marks}"}}
+      - {call: senders.with_counts, with: {addresses: "{vars.entered}", counts: "{vars.counted}"}, save_as: typed}
+      - {call: store.get,           with: {store: MONITORED_SENDERS}, save_as: monitored}
+      - {call: user.choose_senders, with: {items: "{vars.typed}", prompt: "Monitor mail from which of the addresses entered?",
+                                           monitored: "{vars.monitored}"}, save_as: new_senders}
+    next: SAVE
+  SAVE:
+    steps:
+      - {call: store.add,     with: {store: MONITORED_SENDERS, items: "{vars.new_senders}"}, save_as: added}
+      - {call: store.get,     with: {store: MONITORED_SENDERS}, save_as: monitored}
+      - {call: get,           with: {value: {monitored_senders: "{vars.monitored}", added: "{vars.added.added}", already_monitored: "{vars.added.present}"}}, save_as: screen}
+      - {call: labels_of,     with: {value: "{vars.screen}"}, save_as: marks}
+      - {call: user.show,     with: {report: "{vars.screen}", marks: "{vars.marks}"}}
+    next: ASK
+  REMOVE:
+    steps:
+      - {call: store.get,     with: {store: MONITORED_SENDERS}, save_as: monitored}
+      - {call: user.choose,   with: {items: "{vars.monitored}", prompt: "Stop monitoring which senders?"}, save_as: chosen}
+      - {call: store.remove,  with: {store: MONITORED_SENDERS, items: "{vars.chosen}"}}
+    next: ASK
+  REVIEW:                                 # messages update_calendar could not read
+    steps:
+      - {call: store.get,     with: {store: NEEDS_ATTENTION}, save_as: attention}
+      - {call: user.choose,   with: {items: "{vars.attention}", prompt: "These messages could not be read. Remove which from this list?"}, save_as: chosen}
+      - {call: store.remove,  with: {store: NEEDS_ATTENTION, items: "{vars.chosen}"}}
+    next: ASK
+  LINKS:                                  # the forms of tracking link found in the mail; ticking one approves it
+    steps:
+      - {call: store.get,         with: {store: LINKS_TO_APPROVE}, save_as: waiting}
+      - {call: user.choose_links, with: {items: "{vars.waiting}", prompt: "Write tracking links that fit which of these rules on calendar entries? A link is written as its message has it, with its other parameters."}, save_as: chosen}
+      - {call: store.add,         with: {store: APPROVED_LINKS, items: "{vars.chosen}"}}
+      - {call: store.remove,      with: {store: LINKS_TO_APPROVE, items: "{vars.chosen}"}}
+      - {call: store.get,         with: {store: LINKS_TO_APPROVE}, save_as: left}
+      - {call: lists.sizes,       with: {lists: {left: "{vars.left}"}}, save_as: left_sizes}
+    next: {switch: "{vars.left_sizes.left}", goto: {0: ASK}, else: DECLINE_LINKS}
+  DECLINE_LINKS:                          # the rules not approved: ticking one declines it; one not ticked stays in the list
+    steps:
+      - {call: user.choose_links, with: {items: "{vars.left}", prompt: "Decline which of these rules? A declined rule is not offered again, and no link that fits it is written."}, save_as: declined}
+      - {call: store.add,         with: {store: DECLINED_LINKS, items: "{vars.declined}"}}
+      - {call: store.remove,      with: {store: LINKS_TO_APPROVE, items: "{vars.declined}"}}
+    next: ASK
+  ASK:                                    # after every option but done: what the user can do next, said once, here
+    steps:
+      - {call: user.describe, with: {prompt: "Anything else? Name a carrier or a shop to search your mail for its senders (\"add FedEx\"). Say \"enter an address\" to type addresses in a box: an address typed here, in the chat, is not used. Also: stop monitoring a sender, review messages that could not be read, approve tracking links, or \"done\"."}, save_as: reply}
+    next: TURN
+  DONE:
+    steps:
+      - {call: store.get, with: {store: MONITORED_SENDERS}, save_as: monitored}
+      - {call: get,       with: {value: {monitored_senders: "{vars.monitored}"}}, save_as: screen}
+      - {call: labels_of, with: {value: "{vars.screen}"}, save_as: marks}
+      - {call: user.show, with: {report: "{vars.screen}", marks: "{vars.marks}"}}
+    end: true
+  TOO_MANY_TURNS:
+    steps: [{call: user.show, with: {report: {note: "Turn 12 reached without finishing. Stopped; what was saved is kept."}, marks: {}}}]
+    end: true
+  FAILED_BAD_LLM:
+    steps: [{call: user.show, with: {report: {note: "The assistant's answers could not be used 3 times in this run. The model may be too weak for this task, or the server may be misbehaving. Stopped; what was saved is kept."}, marks: {}}}]
+    end: true
+  FAILED:
+    steps:
+      - {call: get,       with: {value: {note: "Stopped on an error. What was saved is kept.", error_type: "{error.type}"}}, save_as: screen}
+      - {call: labels_of, with: {value: "{vars.screen}"}, save_as: marks}
+      - {call: user.show, with: {report: "{vars.screen}", marks: "{vars.marks}"}}
+    end: true

@@ -1,0 +1,20 @@
+# Made-up data: every tool but the page answers from a file in demo/; the mailbox gives every message, whatever is ticked.
+# The assistant's LLM is scripted too: whatever is typed, it chooses search, then add, then done.
+note: "Made-up data: the mailbox, the calendar and the LLM answer from files. The assistant is a script: whatever is typed, it chooses search, then add, then done."
+tools:
+  MAILBOX:         {client: {kind: scripted, answers: demo/mailbox.yaml},   facts: {LEAVES_NETWORK: true,  adds: [UNTRUSTED, PERSONAL]}}
+  LOCAL_LLM:       {client: {kind: scripted, answers: demo/llm.yaml},       facts: {OUTPUT: false, LEAVES_NETWORK: false, adds: [UNTRUSTED, LLM_WRITTEN]}}
+  GOOGLE_CALENDAR: {client: {kind: scripted, answers: demo/calendar.yaml},  facts: {OUTPUT: true,  LEAVES_NETWORK: true,  adds: []}}
+  SENDERS_FILE:    {client: {kind: scripted, answers: demo/senders.yaml},   facts: {OUTPUT: false, LEAVES_NETWORK: false, adds: []}}
+  CLOCK:           {client: {kind: scripted, answers: demo/clock.yaml}, facts: {OUTPUT: false, LEAVES_NETWORK: false, adds: []}}
+  BROWSER:         {client: {kind: web},                                    facts: {OUTPUT: true,  LEAVES_NETWORK: false, adds: []}}
+modules:
+  mail.read.*:            {tool: MAILBOX, facts: {OUTPUT: false}}   # reads only
+  mail.send.*:            {tool: MAILBOX, facts: {OUTPUT: true}}    # none written: modules/mail_send.py
+  calendar.*:             {tool: GOOGLE_CALENDAR}
+  file.monitored_senders: {tool: SENDERS_FILE}
+  llm.*:                  {tool: LOCAL_LLM}
+  clock.*:                {tool: CLOCK}
+  user.*:                 {tool: BROWSER}   # what is typed in the chat (user.describe) carries no label: a judgment that it holds no personal data
+  user.enter_senders:     {tool: BROWSER, facts: {adds: [PERSONAL]}}
+log: {tool: BROWSER, facts: {DESTRUCTIVE: false}}   # the page displays what a module wrote in an error: a call of `log`, checked like a call of a module that uses this tool

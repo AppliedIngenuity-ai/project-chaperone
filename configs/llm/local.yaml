@@ -1,0 +1,16 @@
+# Your LLM server. Every setup that uses an LLM in your network reads this file: in deliveries, demo_llm, real_mail
+# and real; in safe_rag, local and arxiv. Any server that speaks the OpenAI chat API: llama.cpp's llama-server,
+# Ollama, vLLM, LM Studio. As shipped: Qwen3.6-35B-A3B on port 8077, the model and server the published measurements
+# used. llama-server's default port is 8080; Ollama's address is http://localhost:11434/v1.
+name: "the LLM server of configs/llm/local.yaml"   # how error messages name this server
+provider: openai                            # the OpenAI chat API; `anthropic` is Claude's own API
+model: "Qwen3.6-35B-A3B-MTP-UD-Q6_K_XL"     # the model's name, as your server calls it
+api_base: http://localhost:8077/v1          # the server's address; the client adds /chat/completions
+temperature: 0.0                            # 0.0: the model's most likely answer each time
+max_tokens: 1024                            # the longest answer, in tokens
+timeout: 300                                # seconds to wait for an answer
+extra:
+  request_body:                             # sent to the server with every request (these are llama-server's options)
+    seed: 42
+    cache_prompt: true
+    chat_template_kwargs: {enable_thinking: false}     # these are short, exact questions; no thinking pass

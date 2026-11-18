@@ -1,0 +1,14 @@
+workflow: share_summary
+description: "Summarizes a note, shows the summary, then tries to send it by e-mail: that call is refused."
+start: MAIN
+on_error: FAILED
+states:
+  MAIN:
+    steps:
+      - {call: notes.search,      with: {keyword: "trip"},                                 save_as: notes}
+      - {call: llm.summarize,     with: {notes: "{vars.notes}"},                           save_as: summary}
+      - {call: labels_of,         with: {value: "{vars.summary}"},                         save_as: marks}
+      - {call: user.show,         with: {report: "{vars.summary}", marks: "{vars.marks}"}}
+      - {call: mail.send.message, with: {to: "friend@example.com", body: "{vars.summary}"}}
+    end: true
+  FAILED: {end: true}                     # an error, a refused call included, continues here: the run ends; the page's Log has the error
