@@ -10,7 +10,7 @@ reasonable that this workflow wants to write personal details to my calendar?")
 2. **Enforcement at runtime** happens through data labels (`UNTRUSTED`, `PERSONAL`, ...) and module/tool properties
  (`OUTPUT`, `LEAVES_NETWORK`, ...). All calls are subject to the rules (minus acknowledged exceptions) at runtime.
 A possible violation that is not worth designing away can be accepted as a risk: the call stays forbidden, and is
-only refused if a run attempts it.
+refused if a run attempts it.
 
 [Project Chaperone](**LINK**) fixes the problems of "Agents with tools" (flexible, but a prompt cannot enforce a rule)
 and hard-coded workflows (can be analyzed, but the analysis is manual and is often never done.) 
@@ -22,7 +22,8 @@ no personal or untrusted data output, and no decision made from untrusted data (
 project adds a few explicit exceptions. An LLM is optional: a module may call one, and a state may let an LLM choose the
 next state in the workflow.
 
-This repo also ships with the following examples that demonstrate how a workflow can ask for small, scoped exceptions to those shared rules:
+This repo also ships with these examples (some mentioned in the paper). The idea is to demonstrate how a workflow
+can ask for small, scoped exceptions to the shared rules:
 
 - **deliveries** - Intelligently add delivery notices from your mail into your calendar.
 - **share_notes** - A minimal example showing a problematic workflow.
@@ -68,8 +69,12 @@ python -m chaperone run examples/deliveries
    ignored. In fact, the code to send email is not written yet anyway.
 2. The startup audit will run, and ask you about any exceptions (to the [5 default rules](examples/rules/default.yaml))
    that the project is requesting (via [examples/deliveries/exceptions.yaml]`examples/deliveries/exceptions.yaml`.)
-   Type `1` at each prompt, then give this list of exceptions you just approved a name. This is recorded as an approval
-   record in `state/deliveries/demo/accepted.json`, so the next run won't need approvals.
+   Because this is an example, you can type `1` at each prompt. At the end, you are asked for a name (just for you
+   to remember why you approved it). That name and list of approved exceptions are be added to
+   `state/deliveries/demo/accepted.json`, so the next run doesn't have to ask again. Note that these approvals are
+   scoped per example, so "this is OK for package tracking" doesn't accidentally create loopholes for unrelated workflows.
+   WARNING: In a real system, you would want to examine the details think carefully about the implications before
+   allowing an exception.
 3. A local web server is started, printing it's address in the form `http://127.0.0.1:<port>/?token=<token>`.
    Open that link in a browser (must be running on the same machine.)
 4. On that web page, you will see a chat area on the left, and a list of workflows the right. Press 'Start'
@@ -96,7 +101,9 @@ You can pass in a `--setup` argument to switch between diffrent configurations: 
 uses made-up data, and fake tool calls. (i.e. It doesn't talk to a real mail server or LLM). All of it's
 state is in the folder `state/deliveries/demo`, and you can easily start over by deleting that folder.
 
-Alternately, you can use `--setup real` to try it on your real calendars and email. (This must be configured,
+You can pass in `--setup demo_llm` to pass the fake emails to a real LLM. (See configuration below)
+
+Alternately, you can use `--setup real` to try it on your real calendars, email and LLM. (These must be configured,
 see "Use your own LLM, mail and calendar" below.)  In this configuration you should avoid deleting your entire
 state folder, because will create a second calendar.  You can use the `reset_all` workflow instead,
 which clears out most state, except for the stateful parts needet to find the calendar.
