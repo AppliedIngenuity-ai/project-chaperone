@@ -22,6 +22,23 @@ next state among those the workflow lists.
 
 The paper: *(link to be added)*.
 
+This repo contains the following demos:
+- **deliveries** - 
+
+
+share_notes
+
+The smallest: a note, an LLM's summary of it, shown to you, then e-mailed. The start reports the e-mail as a possible
+
+
+ask_my_mail
+
+A keyword and a question about your mail; the LLM's answer shown with its labels.
+
+deliveries
+
+Delivery notices from your mail, written to a calendar.
+
 ## Install
 
 We recommend a Python virtual environment of its own ([how to make one](https://docs.python.org/3/tutorial/venv.html)).
@@ -32,6 +49,9 @@ In the environment:
 ```
 git clone https://github.com/AppliedIngenuity-ai/project-chaperone.git
 cd project-chaperone
+# Example virtual env setup.
+#   python -m venv .env
+#   source .env/bin/activate
 pip install -e .
 ```
 
@@ -75,6 +95,21 @@ anywhere but the folder `state/deliveries/demo`. To start over, delete that fold
 
 Each folder holds the files of "How a project is written" (below); its README has the details.
 
+### deliveries
+
+Delivery notices from your mail, written to a calendar. An LLM chooses the next step of a conversation; addresses,
+ticks and approvals are made in boxes the LLM is not passed.
+
+- Try it: `python -m chaperone run examples/deliveries` ("Run an example", above)
+- Setups: `demo`, `demo_llm`, `real_mail`, `real` (see "Use your own LLM, mail and calendar", below).
+- Workflows: `assistant`, a conversation that chooses whose mail is monitored; `discover_links`, which finds the forms
+  of those senders' tracking links and asks which to use; `update_calendar`, which reads their new mail and writes
+  the calendar; `reset_entries`, which removes the entries and keeps the senders; `reset_all`, which removes
+  everything stored.
+- Also: `prompts.yaml` (the LLM's prompts), `modules/` (one file per tool), `demo/` (the made-up mail, LLM answers and
+  calendar).
+- [Its README](examples/deliveries/README.md).
+
 ### share_notes
 
 The smallest: a note, an LLM's summary of it, shown to you, then e-mailed. The start reports the e-mail as a possible
@@ -94,21 +129,6 @@ A keyword and a question about your mail; the LLM's answer shown with its labels
 - Workflow: `ask_my_mail`: searches the mail for the keyword, passes the messages and the question to the LLM, shows
   the answer.
 - [Its README](examples/ask_my_mail/README.md).
-
-### deliveries
-
-Delivery notices from your mail, written to a calendar. An LLM chooses the next step of a conversation; addresses,
-ticks and approvals are made in boxes the LLM is not passed.
-
-- Try it: `python -m chaperone run examples/deliveries` ("Run an example", above)
-- Setups: `demo`, `demo_llm`, `real_mail`, `real` (see "Use your own LLM, mail and calendar", below).
-- Workflows: `assistant`, a conversation that chooses whose mail is monitored; `discover_links`, which finds the forms
-  of those senders' tracking links and asks which to use; `update_calendar`, which reads their new mail and writes
-  the calendar; `reset_entries`, which removes the entries and keeps the senders; `reset_all`, which removes
-  everything stored.
-- Also: `prompts.yaml` (the LLM's prompts), `modules/` (one file per tool), `demo/` (the made-up mail, LLM answers and
-  calendar).
-- [Its README](examples/deliveries/README.md).
 
 ### safe_rag
 
