@@ -70,8 +70,8 @@ python -m chaperone run examples/deliveries
 2. The startup audit will run, and ask you about any exceptions (to the [5 default rules](examples/rules/default.yaml))
    that the project is requesting (via [examples/deliveries/exceptions.yaml]`examples/deliveries/exceptions.yaml`.)
    Because this is an example, you can type `1` at each prompt. At the end, you are asked for a name (just for you
-   to remember why you approved it). That name and list of approved exceptions are be added to
-   `state/deliveries/demo/accepted.json`, so the next run doesn't have to ask again. Note that these approvals are
+   to remember why you approved it). That named list of approved exceptions are added to
+   `state/deliveries/demo/accepted.json`, so identical questions won't be asked again. Note that these approvals are
    scoped per example, so "this is OK for package tracking" doesn't accidentally create loopholes for unrelated workflows.
    WARNING: In a real system, you would want to examine the details think carefully about the implications before
    allowing an exception.
