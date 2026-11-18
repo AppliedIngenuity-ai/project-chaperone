@@ -1,48 +1,61 @@
 # Project Chaperone
 
-A rule-enforcing harness for workflows, including workflows that work like agents with tools: an LLM may choose the
-next step, and every call it leads to is checked against rules you write. It adds two capabilities:
+Project Chaperone is a harness that allows agentic AI tool calling, while enforcing high-level policies such as
+"no personal data may be leave the network". It adds two capabilities:
 
-1. **A report before running** of every possible violation of the rules, over every route of every workflow. A person
-   responsible for policy can review a system without reading its workflows.
-2. **Enforcement at runtime**, through labels on the data (`UNTRUSTED`, `PERSONAL`, ...) and properties of the modules
-   (`OUTPUT`, `LEAVES_NETWORK`, ...): a call that a rule forbids and no exception permits is refused before it is made.
-
+1. **audit report before running** will check every route of all workflows for violations of the rules. A human
+makes policy decisions about exceptions to the rules, and those approvals are recorded. They can make these
+decisions via the 'shape' of the policies needed, without worrying about the actual workflow details. (I.e. "Is it
+reasonable that this workflow wants to write personal details to my calendar?")
+2. **Enforcement at runtime** happens through data labels (`UNTRUSTED`, `PERSONAL`, ...) and module/tool properties
+ (`OUTPUT`, `LEAVES_NETWORK`, ...). All calls are subject to the rules (minus acknowledged exceptions) at runtime.
 A possible violation that is not worth designing away can be accepted as a risk: the call stays forbidden, and is
 refused if a run attempts it.
 
-Agents with tools are flexible, but a prompt cannot enforce a rule. Hard-coded workflows can be analyzed, because their
-states are fixed, but the analysis is manual and is often never done. Chaperone makes that analysis a program's job,
-and enforces the rules while the system runs.
+[Project Chaperone](**LINK**) fixes the problems of "Agents with tools" (flexible, but a prompt cannot enforce a rule)
+and hard-coded workflows (can be analyzed, but the analysis is manual and is often never done.) 
+In Project Chaperone, that analysis is automated, and the rules are enforced while the system runs.
 
-Five shared rules ship with it, in `examples/rules/default.yaml`: no destructive actions, nothing leaves the network,
-no personal or untrusted data output, and no decision made from untrusted data, such as text an LLM wrote. Each
-project adds a few explicit exceptions. An LLM is optional: a module may call one, and a state may let one choose the
-next state among those the workflow lists.
+This repo ships with five shared rules (in [examples/rules/default.yaml](examples/rules/default.yaml)):
+no destructive actions, nothing leaves the network,
+no personal or untrusted data output, and no decision made from untrusted data (such as text an LLM wrote.) Each
+project adds a few explicit exceptions. An LLM is optional: a module may call one, and a state may let an LLM choose the
+next state in the workflow.
 
-The paper: *(link to be added)*.
+This repo also ships with these examples (some mentioned in the paper). The idea is to demonstrate how a workflow
+can ask for small, scoped exceptions to the shared rules:
+
+- **deliveries** - Intelligently add delivery notices from your mail into your calendar.
+- **share_notes** - A minimal example showing a problematic workflow.
+- **ask_my_mail** - An example of LLM interating with email
+- **safe_rag** - Ask questions about the Federalist Papers, or your own documents.
 
 ## Install
 
-We recommend a Python virtual environment of its own ([how to make one](https://docs.python.org/3/tutorial/venv.html)).
-It has been run with Python 3.13.7. Older versions are not tested, and `pyproject.toml` asks for 3.13 or newer.
-
-In the environment:
+Do the following one-time setup:
 
 ```
 git clone https://github.com/AppliedIngenuity-ai/project-chaperone.git
 cd project-chaperone
+# Set up your virtual environment here (see below)
 pip install -e .
+# (Optional): also install test libraries
+pip install -e ".[test]"
 ```
+
+There are many different ways to setup Python virtual environments, this repo is agnostic.
+One example using [venv](https://docs.python.org/3/tutorial/venv.html)) could be: run
+`python -m venv .env` once, and `source .env/bin/activate` once per shell in which you will run
+the commands below. Note that `pyproject.toml` asks for 3.13 or newer, and versions before 3.13.5
+have not been tested.
 
 Check the install:
 
 ```
-pip install -e ".[test]"
 python -m pytest
 ```
 
-Every test passes; 2 are skipped, because they ask a real LLM server (see "Step 1: your LLM" below).
+Note that tests 2 are skipped because they would ask a real LLM server (see "Step 1: your LLM" below).
 
 ## Run an example
 
@@ -52,28 +65,69 @@ From the folder `project-chaperone`:
 python -m chaperone run examples/deliveries
 ```
 
-1. The terminal lists the five rules, each with the exceptions the project wrote. Type `1` at each, then a name for
-   the record. The `WARNING` above the rules is expected: the line `mail.send.*` of the setup marks where a module
-   that sends mail would go, and no such module is written.
-2. It prints the page's address, `http://127.0.0.1:<port>/?token=...`. Open it in a browser on this machine.
-3. On the page, press Start beside `assistant` and type anything at each question: in `demo` the LLM is a script that searches the
-   mail, opens a box for addresses (type any address), then finishes. Tick the senders it found. Then press Start
-   beside `update_calendar`: the conversation shows each made-up message as it is read, and each entry's values.
-   One message is set aside on purpose: it gives no date. [Its README](examples/deliveries/README.md) has each step.
-4. Ctrl-C stops it. The next start asks nothing, until the result of the check changes: a rule, an exception, a
-   workflow, or what is stated about a module.
-5. To change your answers, start over: delete the folder `state/<project>/<setup>/`. This also forgets what the
-   project stored, such as the senders. Under the setup `real`, do not delete it: Start `reset_all`, then press
-   "Start from nothing" on the tab State, which keeps the record of your Google calendar (deleting the folder makes
-   the next run create a second calendar). To change one answer, and for what each answer does:
-   [docs/exceptions.md](docs/exceptions.md).
+1. You will see a `WARNING` about the `mail.send.*` module not being properly configured to send mail. This can be
+   ignored. In fact, the code to send email is not written yet anyway.
+2. The startup audit will run, and ask you about any exceptions (to the [5 default rules](examples/rules/default.yaml))
+   that the project is requesting (via [examples/deliveries/exceptions.yaml]`examples/deliveries/exceptions.yaml`.)
+   Because this is an example, you can type `1` at each prompt. At the end, you are asked for a name (just for you
+   to remember why you approved it). That named list of approved exceptions are added to
+   `state/deliveries/demo/accepted.json`, so identical questions won't be asked again. Note that these approvals are
+   scoped per example, so "this is OK for package tracking" doesn't accidentally create loopholes for unrelated workflows.
+   WARNING: In a real system, you would want to examine the details think carefully about the implications before
+   allowing an exception.
+3. A local web server is started, printing it's address in the form `http://127.0.0.1:<port>/?token=<token>`.
+   Open that link in a browser (must be running on the same machine.)
+4. On that web page, you will see a chat area on the left, and a list of workflows the right. Press 'Start'
+   beside the `assistant` workflow, and the workflow's output will appear in the chat area. Type anything you want
+   at each question. In the `demo` configuration, we have replaced the calls to LLM with a script that requests
+   pre-defined tool calls: It will search the mail, ask for addresses (you can type any address), then finish.
+   The workflow then allows you to approve (via checkboxes) any senders it found.
+5. Next, press 'Start' beside `update_calendar` to kick off this workflow.  The conversation shows each made-up
+   message as it is read, and each entry's values. One message is set aside on purpose: it gives no date.
+   [The README](examples/deliveries/README.md) details each step.
+4. Hit Ctrl-C to stop the harness web server.
 
-With no `--setup`, it runs the setup `demo`, on made-up data: nothing is read from your mail and nothing is written
-anywhere but the folder `state/deliveries/demo`. To start over, delete that folder.
+You can kick off multiple workflows at once, and they are interleaved in the chat output.
+
+Future runs won't re-ask about the exceptions you approved -- until you change the rules, exceptions, workflows,
+or module labels/properties: In this case, the startup audit may ask for new approvals.
+
+All workflow state is stored in `state/deliveries/demo/` (or more generally `state/<project>/<setup>/`).
+You can delete this folder to forget *everything* the workflow has saved locally. You can also do this via
+the web UI: on the State tab, there is a "Start from nothing" button. Note that deleting this folder is
+generally only recommended for demo data.
+
+You can pass in a `--setup` argument to switch between diffrent configurations: The default of `--setup demo`,
+uses made-up data, and fake tool calls. (i.e. It doesn't talk to a real mail server or LLM). All of it's
+state is in the folder `state/deliveries/demo`, and you can easily start over by deleting that folder.
+
+You can pass in `--setup demo_llm` to pass the fake emails to a real LLM. (See configuration below)
+
+Alternately, you can use `--setup real` to try it on your real calendars, email and LLM. (These must be configured,
+see "Use your own LLM, mail and calendar" below.)  In this configuration you should avoid deleting your entire
+state folder, because will create a second calendar.  You can use the `reset_all` workflow instead,
+which clears out most state, except for the stateful parts needet to find the calendar.
+
+See [docs/exceptions.md](docs/exceptions.md) to learn about exceptions and acknowledgements.
 
 ## The examples
 
-Each folder holds the files of "How a project is written" (below); its README has the details.
+See the ReadMe of each example for more detail. Also see "Project layout" (below) for how the files are organized.
+
+### deliveries
+
+Delivery notices from your mail, written to a calendar. An LLM chooses the next step of a conversation; addresses,
+ticks and approvals are made in boxes the LLM is not passed.
+
+- Try it: `python -m chaperone run examples/deliveries` (See also "Run an example" above)
+- Setups: `demo`, `demo_llm`, `real_mail`, `real` (see "Use your own LLM, mail and calendar", below).
+- Workflows: `assistant`, a conversation that chooses whose mail is monitored; `discover_links`, which finds the forms
+  of those senders' tracking links and asks which to use; `update_calendar`, which reads their new mail and writes
+  the calendar; `reset_entries`, which removes the entries and keeps the senders; `reset_all`, which removes
+  everything stored.
+- Also: `prompts.yaml` (the LLM's prompts), `modules/` (one file per tool), `demo/` (the made-up mail, LLM answers and
+  calendar).
+- [README](examples/deliveries/README.md).
 
 ### share_notes
 
@@ -95,21 +149,6 @@ A keyword and a question about your mail; the LLM's answer shown with its labels
   the answer.
 - [Its README](examples/ask_my_mail/README.md).
 
-### deliveries
-
-Delivery notices from your mail, written to a calendar. An LLM chooses the next step of a conversation; addresses,
-ticks and approvals are made in boxes the LLM is not passed.
-
-- Try it: `python -m chaperone run examples/deliveries` ("Run an example", above)
-- Setups: `demo`, `demo_llm`, `real_mail`, `real` (see "Use your own LLM, mail and calendar", below).
-- Workflows: `assistant`, a conversation that chooses whose mail is monitored; `discover_links`, which finds the forms
-  of those senders' tracking links and asks which to use; `update_calendar`, which reads their new mail and writes
-  the calendar; `reset_entries`, which removes the entries and keeps the senders; `reset_all`, which removes
-  everything stored.
-- Also: `prompts.yaml` (the LLM's prompts), `modules/` (one file per tool), `demo/` (the made-up mail, LLM answers and
-  calendar).
-- [Its README](examples/deliveries/README.md).
-
 ### safe_rag
 
 Questions about the Federalist Papers, or your own documents. An answer is shown only with quotes found in the
@@ -128,10 +167,10 @@ Every setup but `demo` needs your own LLM, mail or calendar: "Use your own LLM, 
 
 ## Changing configurations
 
-Do not edit the shipped files. Write your changes in `private/local.yaml` (git ignores `private/`): the path of a
-shipped file, then only the keys you change, nested as that file nests them.
+Do not edit the shipped files. Write your changes in `private/local.yaml` (git ignores `private/`): the keys of that
+file are paths of a shipped file, mapped to the keys you need to change, nested as that file nests them.
 
-For example, to use an LLM server at another address:
+For example, to use an LLM server at another address, put this in your `private/local.yaml`:
 
 ```yaml
 configs/llm/local.yaml:
@@ -159,8 +198,8 @@ examples/safe_rag/setups/local.yaml:
 ```
 
 - The keys you can change are the ones the shipped file has: open it to see them.
-- A key you do not write keeps its shipped value. A list you write replaces the shipped list whole.
-- Your mail login is not here: it is in `private/env.sh` (step 2, below).
+- If you don't mention a file, or a key  in the file, it keeps its shipped value. A list you write replaces the shipped list whole.
+- Note that secrets such as your mail login are not here: they are in `private/env.sh` (See step 2, below).
 - Rules and exceptions cannot be changed this way.
 
 **At the next start**, run from the folder `project-chaperone`, the program lists the changes it read: those to a
@@ -175,8 +214,8 @@ NOTE private/local.yaml: examples/deliveries/setups/real.yaml was not read by th
 NOTE private/local.yaml: examples/safe_rag/setups/local.yaml was not read by this run; nothing in it changed.
 ```
 
-A key the shipped file does not have changes nothing; the start says so with a `WARNING`. `--defaults-only` reads
-none of your changes, for one run; `--config FILE` reads another file in place of `private/local.yaml`.
+Adding a spurious key (that the shipped file does not have) changes nothing. You will get a `WARNING` about that.
+`--defaults-only` ignores your local changes for one run; `--config FILE` reads another file in place of `private/local.yaml`.
 
 ## Use your own LLM, mail and calendar
 
@@ -422,7 +461,7 @@ python -m chaperone signin <project> [--setup NAME]   # sign in to Google, for a
 `--setup` is `demo` when the project has one, otherwise `local`. `--state DIR` names the state folder; by default it is
 `state/<project>/<setup>`.
 
-## How a project is written
+## Project layout
 
 | File | Holds |
 |---|---|
@@ -439,13 +478,11 @@ number, are in [docs/specification.md](docs/specification.md).
 
 ## Known issues
 
-The ones a first run may meet:
-
 - The first start of `deliveries` lists 12 exceptions under the five rules, each answered `1`. It is the report of
   what the project may do, and it is long.
 - The LLM is not tried at the start: with no server, the first call that needs it fails. "Check your LLM" (Step 1)
   tries it first.
-- It has been run with Python 3.13.7 only.
+- Note that most testing was done on Python 3.13.7.
 - Each state folder makes its own Google calendar, so two can have the same name.
 - The mail check reads a header that a sender can write (Step 2).
 
