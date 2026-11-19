@@ -12,6 +12,11 @@ reasonable that this workflow wants to write personal details to my calendar?")
 A possible violation that is not worth designing away can be accepted as a risk: the call stays forbidden, and is
 refused if a run attempts it.
 
+![Cartoon: a pre-run check warns of a possible leak; labels stick on data through an LLM; a call attempting to send PERSONAL data out by e-mail is blocked](docs/images/cartoon.png)
+
+*Cartoon: The main idea behind Project Chaperone, simplified to a single rule: PERSONAL data may not leave by e-mail.
+Labels stick with the data as it passes through the LLM, and the harness blocks the call that would break the rule.*
+
 [Project Chaperone](**LINK**) fixes the problems of "Agents with tools" (flexible, but a prompt cannot enforce a rule)
 and hard-coded workflows (can be analyzed, but the analysis is manual and is often never done.) 
 In Project Chaperone, that analysis is automated, and the rules are enforced while the system runs.
