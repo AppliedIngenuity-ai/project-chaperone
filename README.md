@@ -1,5 +1,7 @@
 # Project Chaperone
 
+**Paper:** [Project Chaperone: A Rule-Enforcing Harness for Proactive Assessment and Prevention of AI Agent Misconduct](https://appliedingenuity.substack.com/p/project-chaperone-a-rule-enforcing)
+
 Project Chaperone is a harness that allows agentic AI tool calling, while enforcing high-level policies such as
 "no personal data may be leave the network". It adds two capabilities:
 
